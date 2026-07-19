@@ -3,6 +3,8 @@
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Button, Card, Input, Label } from "@/components/ui";
+import { IconBadge } from "@/components/Icons";
+import { Clock, Palette, Settings2, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export default function ConfigPage() {
@@ -45,15 +47,25 @@ export default function ConfigPage() {
 
   return (
     <div className="space-y-5 max-w-2xl">
-      <div>
-        <h1 className="text-2xl font-semibold text-stone-900">Configuración</h1>
-        <p className="text-sm text-stone-500">
-          Horarios, duración y tipos de turno
-        </p>
+      <div className="flex items-start gap-3">
+        <IconBadge tone="stone">
+          <Settings2 className="h-5 w-5" />
+        </IconBadge>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-stone-900">
+            Configuración
+          </h1>
+          <p className="text-sm text-stone-500">
+            Horarios, duración y tipos de turno
+          </p>
+        </div>
       </div>
 
       <Card className="p-5">
-        <h2 className="mb-4 font-semibold">Agenda</h2>
+        <h2 className="mb-4 flex items-center gap-2 font-semibold">
+          <Clock className="h-4 w-4 text-teal-700" />
+          Agenda
+        </h2>
         <form onSubmit={handleSave} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -118,7 +130,10 @@ export default function ConfigPage() {
       </Card>
 
       <Card className="p-5">
-        <h2 className="mb-4 font-semibold">Tipos de actividad</h2>
+        <h2 className="mb-4 flex items-center gap-2 font-semibold">
+          <Palette className="h-4 w-4 text-teal-700" />
+          Tipos de actividad
+        </h2>
         <ul className="mb-4 space-y-2">
           {types.map((t) => (
             <li
@@ -165,7 +180,10 @@ export default function ConfigPage() {
       </Card>
 
       <Card className="p-5 text-sm text-stone-600 leading-relaxed">
-        <p className="font-medium text-stone-800 mb-1">Privacidad</p>
+        <p className="mb-1 flex items-center gap-2 font-semibold text-stone-800">
+          <ShieldCheck className="h-4 w-4 text-teal-700" />
+          Privacidad
+        </p>
         <p>
           Los datos viven en tu proyecto Convex, protegidos con usuario y
           contraseña. Solo vos podés ver y editar tu agenda.

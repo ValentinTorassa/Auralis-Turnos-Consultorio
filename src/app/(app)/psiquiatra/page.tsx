@@ -5,7 +5,8 @@ import { api } from "../../../../convex/_generated/api";
 import { Button, Card, Empty, Modal } from "@/components/ui";
 import { PatientPicker } from "@/components/PatientPicker";
 import { formatDateTime } from "@/lib/utils";
-import { CalendarPlus, UserPlus } from "lucide-react";
+import { Brain, CalendarPlus, UserPlus } from "lucide-react";
+import { IconBadge } from "@/components/Icons";
 import { useState } from "react";
 import { Id } from "../../../../convex/_generated/dataModel";
 
@@ -46,13 +47,18 @@ export default function PsiquiatraPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-stone-900">
-            Agenda del psiquiatra
-          </h1>
-          <p className="text-sm text-stone-500">
-            Tercer viernes de cada mes · desde las 15:00
-          </p>
+        <div className="flex items-start gap-3">
+          <IconBadge tone="amber">
+            <Brain className="h-5 w-5" />
+          </IconBadge>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-stone-900">
+              Agenda del psiquiatra
+            </h1>
+            <p className="text-sm text-stone-500">
+              Tercer viernes de cada mes · desde las 15:00
+            </p>
+          </div>
         </div>
         <Button onClick={() => void generate()} disabled={busy}>
           <CalendarPlus className="h-4 w-4" />

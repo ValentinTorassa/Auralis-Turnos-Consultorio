@@ -3,7 +3,8 @@
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Button, Card, Empty, Input, Label, Modal, Select, Textarea } from "@/components/ui";
-import { Plus, Search, MessageCircle } from "lucide-react";
+import { MessageCircle, Search, UserPlus, UsersRound } from "lucide-react";
+import { IconBadge } from "@/components/Icons";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { whatsappUrl } from "@/lib/utils";
@@ -58,14 +59,21 @@ export default function PacientesPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-stone-900">Pacientes</h1>
-          <p className="text-sm text-stone-500">
-            Fichas administrativas · {patients.length} registrados
-          </p>
+        <div className="flex items-start gap-3">
+          <IconBadge tone="teal">
+            <UsersRound className="h-5 w-5" />
+          </IconBadge>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-stone-900">
+              Pacientes
+            </h1>
+            <p className="text-sm text-stone-500">
+              Fichas administrativas · {patients.length} registrados
+            </p>
+          </div>
         </div>
         <Button onClick={() => setOpen(true)}>
-          <Plus className="h-4 w-4" />
+          <UserPlus className="h-4 w-4" />
           Nuevo paciente
         </Button>
       </div>

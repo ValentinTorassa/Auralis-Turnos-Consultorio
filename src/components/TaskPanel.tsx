@@ -4,7 +4,8 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useState } from "react";
 import { Button, Card, Empty, Input } from "./ui";
-import { Check, Plus, Trash2 } from "lucide-react";
+import { IconBadge } from "./Icons";
+import { Check, ListTodo, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function TaskPanel({ date }: { date: string }) {
@@ -31,9 +32,14 @@ export function TaskPanel({ date }: { date: string }) {
 
   return (
     <Card className="p-4 sm:p-5">
-      <div className="mb-4 flex items-center justify-between gap-2">
+      <div className="mb-4 flex items-center gap-2.5">
+        <IconBadge tone="violet" className="h-9 w-9 rounded-xl">
+          <ListTodo className="h-4 w-4" />
+        </IconBadge>
         <div>
-          <h2 className="text-base font-semibold text-stone-900">Tareas del día</h2>
+          <h2 className="text-base font-semibold text-stone-900">
+            Tareas del día
+          </h2>
           <p className="text-xs text-stone-500">
             {pending === 0
               ? "Nada pendiente"
@@ -50,8 +56,14 @@ export function TaskPanel({ date }: { date: string }) {
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Ej. Llamar al abogado..."
         />
-        <Button type="submit" disabled={adding || !title.trim()} size="md" aria-label="Agregar">
-          <Plus className="h-5 w-5" />
+        <Button
+          type="submit"
+          disabled={adding || !title.trim()}
+          size="md"
+          aria-label="Agregar"
+          className="shrink-0 px-3"
+        >
+          <Plus className="h-5 w-5" strokeWidth={2.5} />
         </Button>
       </form>
 
@@ -63,28 +75,28 @@ export function TaskPanel({ date }: { date: string }) {
             <li
               key={t._id}
               className={cn(
-                "flex items-center gap-3 rounded-xl border px-3 py-2.5",
+                "flex items-center gap-3 rounded-2xl border px-3 py-2.5 transition",
                 t.done
                   ? "border-stone-100 bg-stone-50"
-                  : "border-stone-200 bg-white",
+                  : "border-stone-200 bg-white shadow-sm",
               )}
             >
               <button
                 type="button"
                 onClick={() => void toggle({ id: t._id })}
                 className={cn(
-                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border",
+                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border transition",
                   t.done
-                    ? "border-teal-600 bg-teal-600 text-white"
-                    : "border-stone-300 bg-white text-transparent hover:border-teal-500",
+                    ? "border-teal-600 bg-teal-600 text-white shadow-sm shadow-teal-700/20"
+                    : "border-stone-300 bg-white text-transparent hover:border-teal-500 hover:bg-teal-50",
                 )}
                 aria-label={t.done ? "Desmarcar" : "Completar"}
               >
-                <Check className="h-4 w-4" />
+                <Check className="h-4 w-4" strokeWidth={2.75} />
               </button>
               <span
                 className={cn(
-                  "flex-1 text-sm",
+                  "flex-1 text-sm font-medium",
                   t.done ? "text-stone-400 line-through" : "text-stone-800",
                 )}
               >
@@ -93,7 +105,7 @@ export function TaskPanel({ date }: { date: string }) {
               <button
                 type="button"
                 onClick={() => void remove({ id: t._id })}
-                className="rounded-lg p-2 text-stone-400 hover:bg-rose-50 hover:text-rose-600"
+                className="rounded-xl p-2 text-stone-400 hover:bg-rose-50 hover:text-rose-600"
                 aria-label="Eliminar"
               >
                 <Trash2 className="h-4 w-4" />

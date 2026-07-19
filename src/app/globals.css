@@ -13,7 +13,9 @@
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, #ccfbf180, transparent),
+    var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
@@ -27,4 +29,8 @@ select,
 textarea,
 button {
   font: inherit;
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }

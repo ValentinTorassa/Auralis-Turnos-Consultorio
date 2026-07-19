@@ -13,7 +13,8 @@ import {
   todayKey,
   cn,
 } from "@/lib/utils";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { CalendarDays, CalendarPlus, ChevronLeft, ChevronRight } from "lucide-react";
+import { IconBadge } from "@/components/Icons";
 import { useMemo, useState } from "react";
 import { Id } from "../../../../convex/_generated/dataModel";
 
@@ -111,18 +112,25 @@ export default function AgendaPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-stone-900">Agenda</h1>
-          <p className="text-sm text-stone-500 capitalize">
-            {view === "day" && formatDateLong(cursor)}
-            {view === "week" &&
-              `Semana del ${formatDateLong(weekStart).replace(/ de \d{4}$/, "")}`}
-            {view === "month" &&
-              new Intl.DateTimeFormat("es-AR", {
-                month: "long",
-                year: "numeric",
-              }).format(new Date(year, month - 1, 1))}
-          </p>
+        <div className="flex items-start gap-3">
+          <IconBadge tone="teal">
+            <CalendarDays className="h-5 w-5" />
+          </IconBadge>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-stone-900">
+              Agenda
+            </h1>
+            <p className="text-sm text-stone-500 capitalize">
+              {view === "day" && formatDateLong(cursor)}
+              {view === "week" &&
+                `Semana del ${formatDateLong(weekStart).replace(/ de \d{4}$/, "")}`}
+              {view === "month" &&
+                new Intl.DateTimeFormat("es-AR", {
+                  month: "long",
+                  year: "numeric",
+                }).format(new Date(year, month - 1, 1))}
+            </p>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex rounded-xl bg-stone-100 p-1">
@@ -163,7 +171,7 @@ export default function AgendaPage() {
               setOpenNew(true);
             }}
           >
-            <Plus className="h-4 w-4" />
+            <CalendarPlus className="h-4 w-4" />
             Turno
           </Button>
         </div>
