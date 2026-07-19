@@ -1,36 +1,131 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Agenda Consultorio
 
-## Getting Started
+Agenda digital **personal** para consultorio psicológico y pericias.  
+Pensada para reemplazar la agenda en papel: turnos visuales, tareas del día, fichas de pacientes, pagos livianos, recordatorios y agenda del psiquiatra.
 
-First, run the development server:
+**No** es un sistema de reserva online: solo vos asignás los turnos.
+
+## Stack
+
+- **Next.js 15** + TypeScript + Tailwind
+- **Convex** (base de datos reactiva, auth, crons, sync en tiempo real)
+- UI en **español (Argentina)**
+- PWA liviana (instalable en celular / iPad)
+
+## Funciones
+
+| Área | Qué incluye |
+|------|-------------|
+| **Hoy** | Turnos del día, próximo turno resaltado, tareas, avisos |
+| **Agenda** | Vista día / semana / mes, alta rápida, edición, colores por tipo |
+| **Tipos** | Consultorio, pericias (consultorio / Rosario / Rafaela), otros, psiquiatría |
+| **Tareas** | Checklist del día junto a la agenda |
+| **Pacientes** | Ficha admin, búsqueda, WhatsApp, historial, alertas de cancelación/deuda |
+| **Pagos** | Por turno: pagó / no pagó / debe / forma / nota |
+| **Psiquiatra** | Genera el 3.er viernes de cada mes desde las 15:00 |
+| **Recordatorios** | Internos + botón WhatsApp con mensaje listo |
+| **Auth** | Email y contraseña (datos privados por usuario) |
+
+## Requisitos
+
+- Node.js 20+
+- Cuenta en [Convex](https://www.convex.dev) (plan free alcanza para empezar)
+- npm
+
+## Setup local
+
+```bash
+git clone https://github.com/ValentinTorassa/agenda-consultorio.git
+cd agenda-consultorio
+npm install
+```
+
+### 1. Crear proyecto Convex + auth
+
+En una terminal:
+
+```bash
+npx convex dev
+```
+
+- Iniciá sesión en Convex
+- Creá un proyecto (ej. `agenda-consultorio`)
+- Esto escribe `.env.local` con `NEXT_PUBLIC_CONVEX_URL`
+
+En **otra** terminal (misma carpeta), configurá auth:
+
+```bash
+npx @convex-dev/auth
+```
+
+Seguí las instrucciones (genera las claves JWT en el dashboard de Convex).
+
+### 2. Arrancar la app
+
+Con `npx convex dev` sigue corriendo:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abrí [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. **Crear cuenta** (email + contraseña)
+2. La app siembra sola los tipos de turno y la configuración
+3. Empezá a cargar pacientes y turnos
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Deploy (producción)
 
-## Learn More
+### Frontend → Vercel
 
-To learn more about Next.js, take a look at the following resources:
+1. Importá el repo en [Vercel](https://vercel.com)
+2. Variables de entorno:
+   - `NEXT_PUBLIC_CONVEX_URL` = URL de producción de Convex
+3. Deploy
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Backend → Convex
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npx convex deploy
+```
 
-## Deploy on Vercel
+En el dashboard de Convex (producción):
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Completá las variables de **@convex-dev/auth** (JWT)
+- `SITE_URL` = tu dominio de Vercel (ej. `https://agenda-consultorio.vercel.app`)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Uso diario sugerido
+
+1. Abrís **Hoy** → ves pacientes, próximo horario y tareas
+2. Marcás tareas hechas
+3. Si hay avisos, tocás WhatsApp y después **Hecho**
+4. En **Agenda** cargás turnos a futuro (tocá un hueco libre)
+5. En **Psiquiatra** → “Generar próximos 6 meses” la primera vez
+6. Cuando llama un paciente → **Pacientes** y buscás por apellido
+
+## Costos aproximados
+
+| Servicio | Plan típico | Costo |
+|----------|-------------|-------|
+| Convex | Free → Professional | $0 – $25/mes |
+| Vercel | Hobby | $0 |
+| **Total arranque** | | **~$0/mes** |
+
+## Estructura
+
+```
+app/(app)/          # Pantallas autenticadas
+app/(auth)/login    # Login / registro
+components/         # UI y formularios
+convex/             # Schema, queries, mutations, crons
+```
+
+## Privacidad
+
+- Cada usuaria solo ve sus datos (filtrado por `userId` en el backend)
+- No hay historia clínica: solo ficha administrativa y agenda
+- No se envían SMS/WhatsApp automáticos: solo enlaces `wa.me` que abrís vos
+
+## Licencia
+
+Uso personal / MIT para el código de este repositorio.
