@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
-import { Id } from "../../../../../convex/_generated/dataModel";
+import { Doc, Id } from "../../../../../convex/_generated/dataModel";
 import {
   Badge,
   Button,
@@ -10,7 +10,9 @@ import {
   Empty,
   Input,
   Label,
+  Modal,
   Select,
+  Skeleton,
   Textarea,
   WarningBox,
 } from "@/components/ui";
@@ -20,57 +22,42 @@ import {
   statusLabel,
   whatsappUrl,
 } from "@/lib/utils";
-import { ArrowLeft, MessageCircle, Save } from "lucide-react";
+import {
+  ArrowLeft,
+  CalendarClock,
+  CalendarPlus,
+  MessageCircle,
+  Save,
+  Wallet,
+  XCircle,
+} from "lucide-react";
+import { AppointmentForm } from "@/components/AppointmentForm";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
-export default function PacienteDetailPage() {
-  const params = useParams();
-  const id = params.id as Id<"patients">;
-  const data = useQuery(api.patients.get, { id });
-  const warnings = useQuery(api.patients.warnings, { patientId: id }) ?? [];
+function PatientForm({
+  id,
+  patient,
+}: {
+  id: Id<"patients">;
+  patient: Doc<"patients">;
+}) {
   const update = useMutation(api.patients.update);
-
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [birthDate, setBirthDate] = useState("");
-  const [careType, setCareType] = useState("Consultorio");
-  const [adminNotes, setAdminNotes] = useState("");
+  const [fullName, setFullName] = useState(patient.fullName);
+  const [phone, setPhone] = useState(patient.phone ?? "");
+  const [birthDate, setBirthDate] = useState(patient.birthDate ?? "");
+  const [careType, setCareType] = useState(patient.careType);
+  const [adminNotes, setAdminNotes] = useState(patient.adminNotes ?? "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    if (!data?.patient) return;
-    setFullName(data.patient.fullName);
-    setPhone(data.patient.phone ?? "");
-    setBirthDate(data.patient.birthDate ?? "");
-    setCareType(data.patient.careType);
-    setAdminNotes(data.patient.adminNotes ?? "");
-  }, [data?.patient]);
-
-  if (data === undefined) {
-    return <p className="text-sm text-stone-500">Cargando...</p>;
-  }
-  if (!data) {
-    return <Empty title="Paciente no encontrado" />;
-  }
-
-  const { patient, appointments, stats, nextAppointment } = data;
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setSaved(false);
     try {
-      await update({
-        id,
-        fullName,
-        phone,
-        birthDate,
-        careType,
-        adminNotes,
-      });
+      await update({ id, fullName, phone, birthDate, careType, adminNotes });
       setSaved(true);
     } finally {
       setSaving(false);
@@ -78,11 +65,90 @@ export default function PacienteDetailPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <form onSubmit={handleSave} className="space-y-4">
+      <div>
+        <Label>Nombre y apellido</Label>
+        <Input
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+          required
+        />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <Label>Teléfono</Label>
+          <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+        </div>
+        <div>
+          <Label>Nacimiento</Label>
+          <Input
+            type="date"
+            value={birthDate}
+            onChange={(e) => setBirthDate(e.target.value)}
+          />
+        </div>
+      </div>
+      <div>
+        <Label>Tipo de atención</Label>
+        <Select value={careType} onChange={(e) => setCareType(e.target.value)}>
+          {["Consultorio", "Pericia", "Psiquiatría", "Otro"].map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </Select>
+      </div>
+      <div>
+        <Label>Observaciones administrativas</Label>
+        <Textarea
+          value={adminNotes}
+          onChange={(e) => setAdminNotes(e.target.value)}
+        />
+      </div>
+      <div className="flex items-center gap-3">
+        <Button type="submit" disabled={saving}>
+          <Save className="h-4 w-4" />
+          {saving ? "Guardando..." : "Guardar"}
+        </Button>
+        {saved && <span className="text-sm text-teal-700">Guardado ✓</span>}
+      </div>
+    </form>
+  );
+}
+
+export default function PacienteDetailPage() {
+  const params = useParams();
+  const id = params.id as Id<"patients">;
+  const data = useQuery(api.patients.get, { id });
+  const warnings = useQuery(api.patients.warnings, { patientId: id }) ?? [];
+  const [openNew, setOpenNew] = useState(false);
+
+  if (data === undefined) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-12 w-2/3" />
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Skeleton className="h-24" />
+          <Skeleton className="h-24" />
+          <Skeleton className="h-24" />
+        </div>
+        <Skeleton className="h-72" />
+      </div>
+    );
+  }
+  if (!data) {
+    return <Empty title="Paciente no encontrado" />;
+  }
+
+  const { patient, appointments, stats, nextAppointment } = data;
+
+  return (
+    <div className="anim-page space-y-5">
       <div className="flex items-start gap-3">
         <Link
           href="/pacientes"
-          className="mt-1 rounded-xl p-2 hover:bg-stone-100"
+          className="mt-1 rounded-xl p-2 transition hover:bg-stone-100"
+          aria-label="Volver"
         >
           <ArrowLeft className="h-5 w-5" />
         </Link>
@@ -92,38 +158,49 @@ export default function PacienteDetailPage() {
           </h1>
           <p className="text-sm text-stone-500">{patient.careType}</p>
         </div>
-        {patient.phone && (
-          <a
-            href={whatsappUrl(patient.phone)}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <Button variant="secondary">
-              <MessageCircle className="h-4 w-4" />
-              WhatsApp
-            </Button>
-          </a>
-        )}
+        <div className="flex gap-2">
+          <Button onClick={() => setOpenNew(true)}>
+            <CalendarPlus className="h-4 w-4" />
+            Turno
+          </Button>
+          {patient.phone && (
+            <a href={whatsappUrl(patient.phone)} target="_blank" rel="noreferrer">
+              <Button variant="secondary">
+                <MessageCircle className="h-4 w-4" />
+                WhatsApp
+              </Button>
+            </a>
+          )}
+        </div>
       </div>
 
       <WarningBox items={warnings} />
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Card className="p-4">
-          <p className="text-xs font-medium uppercase text-stone-500">Turnos</p>
-          <p className="text-2xl font-semibold text-stone-900">{stats.total}</p>
+          <p className="flex items-center gap-1.5 text-xs font-medium uppercase text-stone-500">
+            <CalendarClock className="h-3.5 w-3.5 text-teal-600" />
+            Turnos
+          </p>
+          <p className="mt-1 text-2xl font-semibold text-stone-900">
+            {stats.total}
+          </p>
         </Card>
         <Card className="p-4">
-          <p className="text-xs font-medium uppercase text-stone-500">
+          <p className="flex items-center gap-1.5 text-xs font-medium uppercase text-stone-500">
+            <XCircle className="h-3.5 w-3.5 text-rose-500" />
             Cancel. últimos {stats.last10Count || 10}
           </p>
-          <p className="text-2xl font-semibold text-stone-900">
+          <p className="mt-1 text-2xl font-semibold text-stone-900">
             {stats.cancelledInLast10}
           </p>
         </Card>
         <Card className="p-4">
-          <p className="text-xs font-medium uppercase text-stone-500">Sin pagar</p>
-          <p className="text-2xl font-semibold text-stone-900">
+          <p className="flex items-center gap-1.5 text-xs font-medium uppercase text-stone-500">
+            <Wallet className="h-3.5 w-3.5 text-amber-600" />
+            Sin pagar
+          </p>
+          <p className="mt-1 text-2xl font-semibold text-stone-900">
             {stats.unpaidCount}
           </p>
         </Card>
@@ -147,50 +224,7 @@ export default function PacienteDetailPage() {
 
       <Card className="p-5">
         <h2 className="mb-4 text-base font-semibold">Ficha administrativa</h2>
-        <form onSubmit={handleSave} className="space-y-4">
-          <div>
-            <Label>Nombre y apellido</Label>
-            <Input value={fullName} onChange={(e) => setFullName(e.target.value)} required />
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <Label>Teléfono</Label>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
-            </div>
-            <div>
-              <Label>Nacimiento</Label>
-              <Input
-                type="date"
-                value={birthDate}
-                onChange={(e) => setBirthDate(e.target.value)}
-              />
-            </div>
-          </div>
-          <div>
-            <Label>Tipo de atención</Label>
-            <Select value={careType} onChange={(e) => setCareType(e.target.value)}>
-              {["Consultorio", "Pericia", "Psiquiatría", "Otro"].map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <Label>Observaciones administrativas</Label>
-            <Textarea
-              value={adminNotes}
-              onChange={(e) => setAdminNotes(e.target.value)}
-            />
-          </div>
-          <div className="flex items-center gap-3">
-            <Button type="submit" disabled={saving}>
-              <Save className="h-4 w-4" />
-              {saving ? "Guardando..." : "Guardar"}
-            </Button>
-            {saved && <span className="text-sm text-teal-700">Guardado</span>}
-          </div>
-        </form>
+        <PatientForm key={patient._id} id={id} patient={patient} />
       </Card>
 
       <section>
@@ -221,6 +255,18 @@ export default function PacienteDetailPage() {
           </ul>
         )}
       </section>
+
+      <Modal
+        open={openNew}
+        onClose={() => setOpenNew(false)}
+        title={`Nuevo turno · ${patient.fullName}`}
+        wide
+      >
+        <AppointmentForm
+          defaultPatientId={id}
+          onDone={() => setOpenNew(false)}
+        />
+      </Modal>
     </div>
   );
 }
