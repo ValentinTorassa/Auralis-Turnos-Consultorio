@@ -1,5 +1,7 @@
 # Agenda Consultorio
 
+**Producción:** https://turnos.valentorassa.com
+
 Agenda digital **personal** para consultorio psicológico y pericias.  
 Pensada para reemplazar la agenda en papel: turnos visuales, tareas del día, fichas de pacientes, pagos livianos, recordatorios y agenda del psiquiatra.
 
@@ -92,7 +94,13 @@ npx convex deploy
 En el dashboard de Convex (producción):
 
 - Completá las variables de **@convex-dev/auth** (JWT)
-- `SITE_URL` = tu dominio de Vercel (ej. `https://agenda-consultorio.vercel.app`)
+- `SITE_URL` = dominio público (actual: `https://turnos.valentorassa.com`)
+
+### Dominio propio (Cloudflare)
+
+El dominio `turnos.valentorassa.com` es un CNAME a `cname.vercel-dns.com`
+(zona `valentorassa.com` en Cloudflare, DNS-only) y está agregado como
+custom domain del proyecto en Vercel.
 
 ## Uso diario sugerido
 
