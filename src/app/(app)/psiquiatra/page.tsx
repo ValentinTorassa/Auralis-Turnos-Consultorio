@@ -44,8 +44,20 @@ export default function PsiquiatraPage() {
   const free = slots.filter((s) => !s.patientId).length;
   const taken = slots.filter((s) => s.patientId).length;
 
+  const byMonth = slots.reduce<Map<string, typeof slots>>((acc, s) => {
+    const label = new Intl.DateTimeFormat("es-AR", {
+      timeZone: "America/Argentina/Buenos_Aires",
+      month: "long",
+      year: "numeric",
+    }).format(new Date(s.startTime));
+    const list = acc.get(label);
+    if (list) list.push(s);
+    else acc.set(label, [s]);
+    return acc;
+  }, new Map());
+
   return (
-    <div className="space-y-4">
+    <div className="anim-page space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
           <IconBadge tone="amber">
@@ -89,35 +101,55 @@ export default function PsiquiatraPage() {
           hint='Tocá "Generar próximos 6 meses" para crear los terceros viernes automáticamente'
         />
       ) : (
-        <ul className="space-y-2">
-          {slots.map((s) => (
-            <li
-              key={s._id}
-              className="flex flex-col gap-2 rounded-2xl border border-stone-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div>
-                <p className="font-semibold text-stone-900">
-                  {formatDateTime(s.startTime)}
-                </p>
-                <p className="text-sm text-stone-500">
-                  {s.patient
-                    ? s.patient.fullName
-                    : s.title || "Horario libre"}
-                </p>
-              </div>
-              {!s.patientId && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setAssignId(s._id)}
-                >
-                  <UserPlus className="h-4 w-4" />
-                  Asignar paciente
-                </Button>
-              )}
-            </li>
+        <div className="space-y-5">
+          {[...byMonth.entries()].map(([monthLabel, monthSlots]) => (
+            <section key={monthLabel}>
+              <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-stone-500 capitalize">
+                {monthLabel}
+              </h2>
+              <ul className="space-y-2">
+                {monthSlots.map((s) => (
+                  <li
+                    key={s._id}
+                    className={`flex flex-col gap-2 rounded-2xl border bg-white px-4 py-3 transition sm:flex-row sm:items-center sm:justify-between ${
+                      s.patientId
+                        ? "border-teal-200 bg-teal-50/40"
+                        : "border-stone-200"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                          s.patientId ? "bg-teal-600" : "bg-stone-300"
+                        }`}
+                      />
+                      <div>
+                        <p className="font-semibold text-stone-900">
+                          {formatDateTime(s.startTime)}
+                        </p>
+                        <p className="text-sm text-stone-500">
+                          {s.patient
+                            ? s.patient.fullName
+                            : "Horario libre"}
+                        </p>
+                      </div>
+                    </div>
+                    {!s.patientId && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setAssignId(s._id)}
+                      >
+                        <UserPlus className="h-4 w-4" />
+                        Asignar paciente
+                      </Button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
           ))}
-        </ul>
+        </div>
       )}
 
       <Modal

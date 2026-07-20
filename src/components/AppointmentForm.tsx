@@ -3,8 +3,16 @@
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
-import { useEffect, useMemo, useState } from "react";
-import { Button, Input, Label, Select, Textarea, WarningBox } from "./ui";
+import { useState } from "react";
+import {
+  Button,
+  Input,
+  Label,
+  Segmented,
+  Select,
+  Textarea,
+  WarningBox,
+} from "./ui";
 import { PatientPicker } from "./PatientPicker";
 import { parseLocalDateTime, todayKey } from "@/lib/utils";
 
@@ -41,18 +49,30 @@ function toDateParts(ms: number) {
   };
 }
 
+function timeToMin(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+function minToTime(total: number): string {
+  const clamped = ((total % 1440) + 1440) % 1440;
+  return `${String(Math.floor(clamped / 60)).padStart(2, "0")}:${String(clamped % 60).padStart(2, "0")}`;
+}
+
 export function AppointmentForm({
   initial,
   defaultDate,
   defaultTime,
+  defaultPatientId,
   onDone,
 }: {
   initial?: Appt;
   defaultDate?: string;
   defaultTime?: string;
+  defaultPatientId?: Id<"patients">;
   onDone: () => void;
 }) {
-  const types = useQuery(api.types.list) ?? [];
+  const types = useQuery(api.types.list);
   const settings = useQuery(api.settings.get);
   const create = useMutation(api.appointments.create);
   const update = useMutation(api.appointments.update);
@@ -62,51 +82,51 @@ export function AppointmentForm({
   const startParts = initial
     ? toDateParts(initial.startTime)
     : { date: defaultDate ?? todayKey(), time: defaultTime ?? "09:00" };
-  const endParts = initial
-    ? toDateParts(initial.endTime)
-    : null;
+  const endParts = initial ? toDateParts(initial.endTime) : null;
 
   const defaultDuration = settings?.defaultDurationMin ?? 50;
 
   const [patientId, setPatientId] = useState<Id<"patients"> | undefined>(
-    initial?.patientId,
+    initial?.patientId ?? defaultPatientId,
   );
   const [typeId, setTypeId] = useState<string>(initial?.typeId ?? "");
   const [title, setTitle] = useState(initial?.title ?? "");
   const [date, setDate] = useState(startParts.date);
   const [startTime, setStartTime] = useState(startParts.time);
   const [endTime, setEndTime] = useState(
-    endParts?.time ??
-      (() => {
-        const [h, m] = (defaultTime ?? "09:00").split(":").map(Number);
-        const total = h * 60 + m + defaultDuration;
-        return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-      })(),
+    endParts?.time ?? minToTime(timeToMin(startParts.time) + defaultDuration),
   );
   const [notes, setNotes] = useState(initial?.notes ?? "");
-  const [paymentStatus, setPaymentStatus] = useState(initial?.paymentStatus ?? "unpaid");
-  const [paymentMethod, setPaymentMethod] = useState(initial?.paymentMethod ?? "");
+  const [paymentStatus, setPaymentStatus] = useState<Appt["paymentStatus"]>(
+    initial?.paymentStatus ?? "unpaid",
+  );
+  const [paymentMethod, setPaymentMethod] = useState(
+    initial?.paymentMethod ?? "",
+  );
   const [paymentNotes, setPaymentNotes] = useState(initial?.paymentNotes ?? "");
-  const [status, setStatus] = useState(initial?.status ?? "confirmed");
+  const [status, setStatus] = useState<Appt["status"]>(
+    initial?.status ?? "confirmed",
+  );
   const [reminder, setReminder] = useState(initial?.reminderEnabled ?? false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (!typeId && types.length) setTypeId(types[0]._id);
-  }, [types, typeId]);
+  // Sin efecto: si todavía no se eligió tipo, usamos el primero disponible.
+  const effectiveTypeId = typeId || types?.[0]?._id || "";
 
   const warnings = useQuery(
     api.patients.warnings,
     patientId ? { patientId } : "skip",
   );
 
-  const canSave = useMemo(() => typeId && date && startTime && endTime, [
-    typeId,
-    date,
-    startTime,
-    endTime,
-  ]);
+  const canSave = Boolean(effectiveTypeId && date && startTime && endTime);
+
+  function handleStartChange(next: string) {
+    // Mantiene la duración corriendo el horario de fin junto con el de inicio.
+    const duration = Math.max(5, timeToMin(endTime) - timeToMin(startTime));
+    setStartTime(next);
+    if (next) setEndTime(minToTime(timeToMin(next) + duration));
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -120,15 +140,15 @@ export function AppointmentForm({
         await update({
           id: initial._id,
           patientId: patientId ?? null,
-          typeId: typeId as Id<"appointmentTypes">,
+          typeId: effectiveTypeId as Id<"appointmentTypes">,
           title: title || undefined,
           startTime: start,
           endTime: end,
           notes,
-          paymentStatus: paymentStatus as Appt["paymentStatus"],
+          paymentStatus,
           paymentMethod: paymentMethod || undefined,
           paymentNotes: paymentNotes || undefined,
-          status: status as Appt["status"],
+          status,
           reminderEnabled: reminder,
         });
         if (reminder && !initial.reminderEnabled) {
@@ -137,12 +157,12 @@ export function AppointmentForm({
       } else {
         const id = await create({
           patientId,
-          typeId: typeId as Id<"appointmentTypes">,
+          typeId: effectiveTypeId as Id<"appointmentTypes">,
           title: title || undefined,
           startTime: start,
           endTime: end,
           notes,
-          paymentStatus: paymentStatus as Appt["paymentStatus"],
+          paymentStatus,
           paymentMethod: paymentMethod || undefined,
           paymentNotes: paymentNotes || undefined,
           reminderEnabled: reminder,
@@ -170,8 +190,12 @@ export function AppointmentForm({
 
       <div>
         <Label>Tipo de turno</Label>
-        <Select value={typeId} onChange={(e) => setTypeId(e.target.value)} required>
-          {types.map((t) => (
+        <Select
+          value={effectiveTypeId}
+          onChange={(e) => setTypeId(e.target.value)}
+          required
+        >
+          {(types ?? []).map((t) => (
             <option key={t._id} value={t._id}>
               {t.name}
             </option>
@@ -188,18 +212,33 @@ export function AppointmentForm({
         />
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <div className="col-span-3 sm:col-span-1">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="col-span-2 sm:col-span-1">
           <Label>Fecha</Label>
-          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+          <Input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            required
+          />
         </div>
         <div>
           <Label>Desde</Label>
-          <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
+          <Input
+            type="time"
+            value={startTime}
+            onChange={(e) => handleStartChange(e.target.value)}
+            required
+          />
         </div>
         <div>
           <Label>Hasta</Label>
-          <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
+          <Input
+            type="time"
+            value={endTime}
+            onChange={(e) => setEndTime(e.target.value)}
+            required
+          />
         </div>
       </div>
 
@@ -212,19 +251,25 @@ export function AppointmentForm({
         />
       </div>
 
+      <div>
+        <Label>Pago</Label>
+        <Segmented
+          value={paymentStatus}
+          onChange={setPaymentStatus}
+          options={[
+            {
+              value: "unpaid",
+              label: "No pagó",
+              activeClass: "text-rose-700",
+            },
+            { value: "paid", label: "Pagó", activeClass: "text-teal-700" },
+            { value: "owes", label: "Debe", activeClass: "text-amber-700" },
+            { value: "na", label: "N/A" },
+          ]}
+        />
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <Label>Pago</Label>
-          <Select
-            value={paymentStatus}
-            onChange={(e) => setPaymentStatus(e.target.value as Appt["paymentStatus"])}
-          >
-            <option value="unpaid">No pagó</option>
-            <option value="paid">Pagó</option>
-            <option value="owes">Debe una sesión</option>
-            <option value="na">N/A</option>
-          </Select>
-        </div>
         <div>
           <Label>Forma de pago</Label>
           <Input
@@ -233,45 +278,65 @@ export function AppointmentForm({
             placeholder="Efectivo, transferencia..."
           />
         </div>
-      </div>
-
-      <div>
-        <Label>Nota de pago</Label>
-        <Input
-          value={paymentNotes}
-          onChange={(e) => setPaymentNotes(e.target.value)}
-          placeholder="Observación rápida"
-        />
+        <div>
+          <Label>Nota de pago</Label>
+          <Input
+            value={paymentNotes}
+            onChange={(e) => setPaymentNotes(e.target.value)}
+            placeholder="Observación rápida"
+          />
+        </div>
       </div>
 
       {initial && (
         <div>
           <Label>Estado</Label>
-          <Select
+          <Segmented
             value={status}
-            onChange={(e) => setStatus(e.target.value as Appt["status"])}
-          >
-            <option value="confirmed">Confirmado</option>
-            <option value="completed">Realizado</option>
-            <option value="cancelled">Cancelado</option>
-            <option value="no_show">Ausente</option>
-          </Select>
+            onChange={setStatus}
+            options={[
+              {
+                value: "confirmed",
+                label: "Confirmado",
+                activeClass: "text-teal-700",
+              },
+              {
+                value: "completed",
+                label: "Realizado",
+                activeClass: "text-emerald-700",
+              },
+              {
+                value: "cancelled",
+                label: "Cancelado",
+                activeClass: "text-rose-700",
+              },
+              {
+                value: "no_show",
+                label: "Ausente",
+                activeClass: "text-amber-700",
+              },
+            ]}
+          />
         </div>
       )}
 
-      <label className="flex items-center gap-3 rounded-xl border border-stone-200 px-3 py-3">
+      <label className="flex items-center gap-3 rounded-2xl border border-stone-200 px-3 py-3 transition hover:bg-stone-50">
         <input
           type="checkbox"
           checked={reminder}
           onChange={(e) => setReminder(e.target.checked)}
-          className="h-5 w-5 rounded border-stone-300"
+          className="h-5 w-5 rounded border-stone-300 accent-teal-700"
         />
         <span className="text-sm text-stone-700">
           Recordarme avisar al paciente (24 h antes)
         </span>
       </label>
 
-      {error && <p className="text-sm text-rose-600">{error}</p>}
+      {error && (
+        <p className="rounded-xl bg-rose-50 px-3 py-2.5 text-sm text-rose-700 ring-1 ring-rose-100">
+          {error}
+        </p>
+      )}
 
       <div className="flex flex-wrap gap-2 pt-2">
         <Button type="submit" disabled={!canSave || saving} className="flex-1">

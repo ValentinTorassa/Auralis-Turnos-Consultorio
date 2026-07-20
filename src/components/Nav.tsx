@@ -2,12 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useAuthActions } from "@convex-dev/auth/react";
 import {
   Brain,
   CalendarRange,
   LayoutDashboard,
-  LogOut,
   Settings2,
   UsersRound,
 } from "lucide-react";
@@ -24,12 +22,11 @@ const links = [
 
 export function Nav() {
   const pathname = usePathname();
-  const { signOut } = useAuthActions();
 
   return (
     <>
       <header className="sticky top-0 z-40 border-b border-stone-200/70 bg-stone-50/85 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
+        <div className="mx-auto flex h-16 max-w-6xl items-center px-4">
           <div className="flex items-center gap-3">
             <LogoMark size={40} className="shadow-md shadow-teal-900/10" />
             <div>
@@ -41,14 +38,6 @@ export function Nav() {
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => void signOut()}
-            className="hidden sm:inline-flex items-center gap-2 rounded-2xl border border-stone-200 bg-white px-3.5 py-2 text-sm font-medium text-stone-600 shadow-sm hover:bg-stone-50 hover:text-stone-900 transition"
-          >
-            <LogOut className="h-4 w-4" strokeWidth={2.25} />
-            Salir
-          </button>
         </div>
       </header>
 
@@ -79,14 +68,6 @@ export function Nav() {
               </Link>
             );
           })}
-          <button
-            type="button"
-            onClick={() => void signOut()}
-            className="flex sm:hidden flex-col items-center justify-center gap-0.5 rounded-2xl px-2 py-2 text-[11px] font-semibold text-stone-500"
-          >
-            <LogOut className="h-[22px] w-[22px]" strokeWidth={2} />
-            Salir
-          </button>
         </div>
       </nav>
     </>

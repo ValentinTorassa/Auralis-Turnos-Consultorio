@@ -52,3 +52,23 @@ export const update = mutation({
     await ctx.db.patch(args.id, patch);
   },
 });
+
+export const remove = mutation({
+  args: { id: v.id("appointmentTypes") },
+  handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
+    const row = await ctx.db.get(args.id);
+    if (!row || row.userId !== userId) throw new Error("Tipo no encontrado");
+    const inUse = await ctx.db
+      .query("appointments")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .filter((q) => q.eq(q.field("typeId"), args.id))
+      .first();
+    if (inUse) {
+      throw new Error(
+        "No se puede eliminar: hay turnos que usan este tipo. Editá el nombre o color si querés cambiarlo.",
+      );
+    }
+    await ctx.db.delete(args.id);
+  },
+});

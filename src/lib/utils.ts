@@ -77,8 +77,17 @@ export function parseLocalDateTime(dateStr: string, time: string): number {
 export function whatsappUrl(phone: string, message?: string): string {
   const digits = phone.replace(/\D/g, "");
   let normalized = digits;
-  if (digits.startsWith("0")) normalized = digits.slice(1);
-  if (!normalized.startsWith("54")) normalized = `54${normalized}`;
+  if (normalized.startsWith("0")) normalized = normalized.slice(1);
+  // WhatsApp AR: los celulares necesitan el prefijo 549 (54 + 9 + área + número)
+  if (normalized.startsWith("549")) {
+    // ya está completo
+  } else if (normalized.startsWith("54")) {
+    normalized = `549${normalized.slice(2)}`;
+  } else if (normalized.startsWith("9") && normalized.length >= 11) {
+    normalized = `54${normalized}`;
+  } else {
+    normalized = `549${normalized}`;
+  }
   const base = `https://wa.me/${normalized}`;
   if (message) return `${base}?text=${encodeURIComponent(message)}`;
   return base;

@@ -1,5 +1,6 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
+import { Doc, Id } from "./_generated/dataModel";
 import { requireUserId, endOfDayMs, startOfDayMs } from "./lib";
 
 const statusV = v.union(
@@ -15,25 +16,27 @@ const paymentV = v.union(
   v.literal("na"),
 );
 
-async function enrich(ctx: { db: any }, userId: any, rows: any[]) {
+async function enrich(
+  ctx: QueryCtx,
+  userId: Id<"users">,
+  rows: Doc<"appointments">[],
+) {
   const types = await ctx.db
     .query("appointmentTypes")
-    .withIndex("by_user", (q: any) => q.eq("userId", userId))
+    .withIndex("by_user", (q) => q.eq("userId", userId))
     .collect();
-  const typeMap = Object.fromEntries(types.map((t: any) => [t._id, t]));
+  const typeMap = new Map(types.map((t) => [t._id, t]));
   const patientIds = [
-    ...new Set(rows.map((r) => r.patientId).filter(Boolean)),
-  ] as string[];
-  const patients = await Promise.all(
-    patientIds.map((id) => ctx.db.get(id as any)),
-  );
-  const patientMap = Object.fromEntries(
-    patients.filter(Boolean).map((p: any) => [p._id, p]),
+    ...new Set(rows.flatMap((r) => (r.patientId ? [r.patientId] : []))),
+  ];
+  const patients = await Promise.all(patientIds.map((id) => ctx.db.get(id)));
+  const patientMap = new Map(
+    patients.flatMap((p) => (p ? [[p._id, p] as const] : [])),
   );
   return rows.map((r) => ({
     ...r,
-    type: typeMap[r.typeId] ?? null,
-    patient: r.patientId ? (patientMap[r.patientId] ?? null) : null,
+    type: typeMap.get(r.typeId) ?? null,
+    patient: r.patientId ? (patientMap.get(r.patientId) ?? null) : null,
   }));
 }
 

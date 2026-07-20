@@ -17,7 +17,7 @@ export const createDemoUser = internalAction({
       const result = await createAccount(ctx, {
         provider: "password",
         account: { id: email, secret: password },
-        profile: { email, name } as any,
+        profile: { email, name },
       });
       return { ok: true as const, created: true, userId: result.user._id };
     } catch (e) {

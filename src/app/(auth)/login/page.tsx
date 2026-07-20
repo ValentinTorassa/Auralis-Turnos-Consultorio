@@ -57,7 +57,7 @@ export default function LoginPage() {
       <div className="pointer-events-none absolute -top-24 -right-16 h-72 w-72 rounded-full bg-teal-300/30 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-20 -left-10 h-72 w-72 rounded-full bg-amber-300/25 blur-3xl" />
 
-      <Card className="relative w-full max-w-md overflow-hidden border-stone-200/80 shadow-xl shadow-stone-900/5">
+      <Card className="anim-page relative w-full max-w-md overflow-hidden border-stone-200/80 shadow-xl shadow-stone-900/5">
         <div className="h-1.5 w-full bg-gradient-to-r from-teal-700 via-teal-500 to-amber-400" />
         <div className="p-6 sm:p-8">
           <div className="mb-7 text-center">

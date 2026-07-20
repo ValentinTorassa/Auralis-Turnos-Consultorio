@@ -7,7 +7,9 @@ import {
   ReactNode,
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
+  useEffect,
 } from "react";
+import { createPortal } from "react-dom";
 import { AlertTriangle, Inbox, X } from "lucide-react";
 
 export function Button({
@@ -162,36 +164,107 @@ export function Modal({
   children: ReactNode;
   wide?: boolean;
 }) {
-  if (!open) return null;
-  return (
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [open, onClose]);
+
+  if (!open || typeof document === "undefined") return null;
+  // Portal: un ancestro con transform (p. ej. .anim-page) convierte a
+  // position:fixed en relativo a ese ancestro; montado en <body> el modal
+  // siempre cubre el viewport completo, incluida la barra de navegación.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <button
         type="button"
-        className="absolute inset-0 bg-stone-900/40 backdrop-blur-[2px]"
+        className="anim-fade-in absolute inset-0 bg-stone-900/45 backdrop-blur-[3px]"
         onClick={onClose}
         aria-label="Cerrar"
       />
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
         className={cn(
-          "relative z-10 w-full max-h-[92vh] overflow-y-auto rounded-t-[1.75rem] sm:rounded-3xl bg-white shadow-2xl shadow-stone-900/20",
+          "anim-sheet relative z-10 w-full max-h-[92dvh] overflow-y-auto rounded-t-[1.75rem] sm:rounded-3xl bg-white shadow-2xl shadow-stone-900/25",
           wide ? "max-w-2xl" : "max-w-lg",
         )}
       >
-        <div className="sticky top-0 flex items-center justify-between border-b border-stone-100 bg-white/95 px-5 py-4 backdrop-blur">
-          <h2 className="text-lg font-semibold tracking-tight text-stone-900">
-            {title}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-stone-500 hover:bg-stone-100 hover:text-stone-800"
-            aria-label="Cerrar"
-          >
-            <X className="h-5 w-5" />
-          </button>
+        <div className="sticky top-0 z-10 border-b border-stone-100 bg-white/95 backdrop-blur">
+          <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-stone-200 sm:hidden" />
+          <div className="flex items-center justify-between px-5 py-3.5 sm:py-4">
+            <h2 className="text-lg font-semibold tracking-tight text-stone-900">
+              {title}
+            </h2>
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-stone-500 transition hover:bg-stone-100 hover:text-stone-800"
+              aria-label="Cerrar"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
-        <div className="p-5">{children}</div>
+        <div className="p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+          {children}
+        </div>
       </div>
+    </div>,
+    document.body,
+  );
+}
+
+export function Skeleton({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn("animate-pulse rounded-2xl bg-stone-200/70", className)}
+    />
+  );
+}
+
+export function Segmented<T extends string>({
+  value,
+  onChange,
+  options,
+  className,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { value: T; label: ReactNode; activeClass?: string }[];
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex w-full gap-1 rounded-2xl bg-stone-100/90 p-1 ring-1 ring-stone-200/60",
+        className,
+      )}
+    >
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          onClick={() => onChange(o.value)}
+          className={cn(
+            "flex-1 whitespace-nowrap rounded-xl px-1.5 py-2 text-xs font-semibold transition sm:px-2 sm:text-sm",
+            value === o.value
+              ? cn("bg-white text-stone-900 shadow-sm", o.activeClass)
+              : "text-stone-500 hover:text-stone-700",
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
     </div>
   );
 }
