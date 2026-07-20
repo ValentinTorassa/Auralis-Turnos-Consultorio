@@ -212,8 +212,8 @@ export function AppointmentForm({
         />
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <div className="col-span-3 sm:col-span-1">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="col-span-2 sm:col-span-1">
           <Label>Fecha</Label>
           <Input
             type="date"
