@@ -1,0 +1,25 @@
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="6" y1="4" x2="42" y2="46" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2DD4BF"/>
+      <stop offset="0.45" stop-color="#0D9488"/>
+      <stop offset="1" stop-color="#0F766E"/>
+    </linearGradient>
+    <linearGradient id="band" x1="10" y1="14" x2="38" y2="22" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FBBF24"/>
+      <stop offset="1" stop-color="#F59E0B"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="8" y1="2" x2="30" y2="30" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="48" height="48" rx="13.5" fill="url(#bg)"/>
+  <rect width="48" height="48" rx="13.5" fill="url(#shine)"/>
+  <rect x="10" y="15.3" width="28" height="24" rx="6" fill="#0B3D3A" fill-opacity="0.35"/>
+  <rect x="10" y="14" width="28" height="24" rx="6" fill="#FFFFFF"/>
+  <path d="M16 14 h16 a6 6 0 0 1 6 6 v2 H10 v-2 a6 6 0 0 1 6 -6 Z" fill="url(#band)"/>
+  <rect x="15.6" y="10.4" width="3.2" height="7.2" rx="1.6" fill="#FEF3C7"/>
+  <rect x="29.2" y="10.4" width="3.2" height="7.2" rx="1.6" fill="#FEF3C7"/>
+  <path d="M16.8 29.2 L22.2 34.2 L31.4 24.4" stroke="#0F766E" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

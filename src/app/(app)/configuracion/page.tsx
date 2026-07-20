@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery } from "convex/react";
+import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "../../../../convex/_generated/api";
 import { Doc } from "../../../../convex/_generated/dataModel";
 import { Button, Card, Input, Label, Skeleton } from "@/components/ui";
@@ -8,6 +9,7 @@ import { IconBadge } from "@/components/Icons";
 import {
   Check,
   Clock,
+  LogOut,
   Palette,
   Pencil,
   Settings2,
@@ -213,6 +215,7 @@ export default function ConfigPage() {
   const settings = useQuery(api.settings.get);
   const types = useQuery(api.types.list) ?? [];
   const createType = useMutation(api.types.create);
+  const { signOut } = useAuthActions();
 
   const [newTypeName, setNewTypeName] = useState("");
   const [newTypeColor, setNewTypeColor] = useState("#6366F1");
@@ -298,6 +301,14 @@ export default function ConfigPage() {
           Los datos viven en tu proyecto Convex, protegidos con usuario y
           contraseña. Solo vos podés ver y editar tu agenda.
         </p>
+        <button
+          type="button"
+          onClick={() => void signOut()}
+          className="mt-4 inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-3.5 py-2 text-sm font-medium text-stone-500 shadow-sm transition hover:bg-stone-50 hover:text-stone-800"
+        >
+          <LogOut className="h-4 w-4" />
+          Cerrar sesión
+        </button>
       </Card>
     </div>
   );
