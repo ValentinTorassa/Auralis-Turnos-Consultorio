@@ -2,7 +2,9 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { QueryCtx, MutationCtx } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 
-export async function requireUserId(ctx: QueryCtx | MutationCtx): Promise<Id<"users">> {
+export async function requireUserId(
+  ctx: QueryCtx | MutationCtx,
+): Promise<Id<"users">> {
   const userId = await getAuthUserId(ctx);
   if (!userId) {
     throw new Error("No autenticado");
@@ -10,7 +12,10 @@ export async function requireUserId(ctx: QueryCtx | MutationCtx): Promise<Id<"us
   return userId;
 }
 
-export function dayKey(ms: number, timeZone = "America/Argentina/Buenos_Aires"): string {
+export function dayKey(
+  ms: number,
+  timeZone = "America/Argentina/Buenos_Aires",
+): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone,
     year: "numeric",
@@ -43,10 +48,92 @@ export function thirdFridayOfMonth(year: number, monthIndex: number): Date {
 }
 
 export const DEFAULT_TYPES = [
-  { name: "Consultorio psicológico", color: "#3B82F6", isPsychiatrist: false, sortOrder: 0 },
-  { name: "Pericia consultorio", color: "#8B5CF6", isPsychiatrist: false, sortOrder: 1 },
-  { name: "Pericia Rosario", color: "#14B8A6", isPsychiatrist: false, sortOrder: 2 },
-  { name: "Pericia Rafaela", color: "#22C55E", isPsychiatrist: false, sortOrder: 3 },
-  { name: "Otro laboral", color: "#64748B", isPsychiatrist: false, sortOrder: 4 },
-  { name: "Psiquiatría", color: "#F59E0B", isPsychiatrist: true, sortOrder: 5 },
+  {
+    code: "consultorio_psicologico",
+    name: "Consultorio psicológico",
+    color: "#3B82F6",
+    isPsychiatrist: false,
+    sortOrder: 0,
+    requiresPatient: true,
+    tracksPayment: true,
+    supportsReminder: true,
+    defaultDurationMin: 50,
+  },
+  {
+    code: "pericia_consultorio",
+    name: "Pericia consultorio",
+    color: "#8B5CF6",
+    isPsychiatrist: false,
+    sortOrder: 1,
+    requiresPatient: true,
+    tracksPayment: true,
+    supportsReminder: true,
+    defaultDurationMin: 50,
+  },
+  {
+    code: "pericia_rosario",
+    name: "Pericia Rosario",
+    color: "#14B8A6",
+    isPsychiatrist: false,
+    sortOrder: 2,
+    requiresPatient: true,
+    tracksPayment: true,
+    supportsReminder: true,
+    defaultDurationMin: 50,
+  },
+  {
+    code: "pericia_rafaela",
+    name: "Pericia Rafaela",
+    color: "#22C55E",
+    isPsychiatrist: false,
+    sortOrder: 3,
+    requiresPatient: true,
+    tracksPayment: true,
+    supportsReminder: true,
+    defaultDurationMin: 50,
+  },
+  {
+    code: "otro_laboral",
+    name: "Otro laboral",
+    color: "#64748B",
+    isPsychiatrist: false,
+    sortOrder: 4,
+    requiresPatient: false,
+    tracksPayment: false,
+    supportsReminder: false,
+    defaultDurationMin: 60,
+  },
+  {
+    code: "psiquiatria",
+    name: "Psiquiatría",
+    color: "#F59E0B",
+    isPsychiatrist: true,
+    sortOrder: 5,
+    requiresPatient: true,
+    tracksPayment: true,
+    supportsReminder: true,
+    defaultDurationMin: 30,
+  },
+  {
+    code: "armas_clu",
+    name: "Armas / CLU",
+    color: "#B45309",
+    isPsychiatrist: false,
+    sortOrder: 6,
+    requiresPatient: true,
+    tracksPayment: true,
+    supportsReminder: true,
+    defaultDurationMin: 50,
+  },
+  {
+    code: "curso_capacitacion",
+    name: "Curso / capacitación",
+    color: "#7C3AED",
+    isPsychiatrist: false,
+    sortOrder: 7,
+    requiresPatient: false,
+    tracksPayment: false,
+    supportsReminder: false,
+    defaultDurationMin: 225,
+  },
 ] as const;

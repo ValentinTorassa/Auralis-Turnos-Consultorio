@@ -2,6 +2,7 @@ import { useQuery } from "convex/react";
 import { BellRing, CalendarCheck2, Clock3, Sparkles } from "lucide-react-native";
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 
 import { api } from "@auralis/backend/api";
 import { AppointmentCard } from "@/components/auralis/appointment-card";
@@ -17,14 +18,17 @@ import {
 } from "@/components/auralis/ui";
 import { colors } from "@/constants/auralis";
 import { formatDate, formatTime, todayKey } from "@/lib/date";
+import { FloatingButton } from "@/components/auralis/floating-button";
 
 export default function TodayScreen() {
   const today = todayKey();
+  const router = useRouter();
   const [taskDate, setTaskDate] = useState(today);
   const summary = useQuery(api.appointments.todaySummary, { date: today });
   const reminders = useQuery(api.reminders.pending) ?? [];
 
   return (
+    <View style={styles.container}>
     <Screen>
       <BrandHeader
         title="Hoy"
@@ -83,10 +87,13 @@ export default function TodayScreen() {
       <DateNavigator date={taskDate} onChange={setTaskDate} />
       <TaskList date={taskDate} />
     </Screen>
+    <FloatingButton onPress={() => router.push({ pathname: "/appointment", params: { date: today } } as never)} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: { flex: 1 },
   stats: { flexDirection: "row", gap: 12 },
   statCard: { flex: 1, alignItems: "center", gap: 3, paddingVertical: 14 },
   statValue: { color: colors.text, fontSize: 24, fontWeight: "800" },

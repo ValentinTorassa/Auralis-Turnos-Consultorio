@@ -1,6 +1,7 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { mutation, query } from "./_generated/server";
-import { requireUserId, DEFAULT_TYPES } from "./lib";
+import { requireUserId } from "./lib";
+import { backfillAppointmentTypesForUser } from "./appointmentTypeDefaults";
 
 export const me = query({
   args: {},
@@ -20,10 +21,6 @@ export const ensureSeeded = mutation({
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .unique();
 
-    if (existing?.seeded) {
-      return { ok: true, already: true };
-    }
-
     if (!existing) {
       await ctx.db.insert("settings", {
         userId,
@@ -38,23 +35,15 @@ export const ensureSeeded = mutation({
       await ctx.db.patch(existing._id, { seeded: true });
     }
 
-    const types = await ctx.db
-      .query("appointmentTypes")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .collect();
-
-    if (types.length === 0) {
-      for (const t of DEFAULT_TYPES) {
-        await ctx.db.insert("appointmentTypes", {
-          userId,
-          name: t.name,
-          color: t.color,
-          isPsychiatrist: t.isPsychiatrist,
-          sortOrder: t.sortOrder,
-        });
-      }
-    }
-
-    return { ok: true, already: false };
+    const result = await backfillAppointmentTypesForUser(
+      ctx,
+      userId,
+      existing?.defaultDurationMin ?? 50,
+    );
+    return {
+      ok: true,
+      already: Boolean(existing?.seeded) && result.created === 0,
+      ...result,
+    };
   },
 });

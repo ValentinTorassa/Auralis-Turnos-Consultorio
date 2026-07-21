@@ -24,12 +24,19 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { cn, whatsappUrl } from "@/lib/utils";
 
-const CARE_TYPES = ["Consultorio", "Pericia", "Psiquiatría", "Otro"];
+const CARE_TYPES = [
+  "Consultorio",
+  "Pericia",
+  "Psiquiatría",
+  "Armas / CLU",
+  "Otro",
+];
 
 const CARE_STYLES: Record<string, string> = {
   Consultorio: "bg-teal-50 text-teal-700 ring-teal-200/70",
   Pericia: "bg-violet-50 text-violet-700 ring-violet-200/70",
   Psiquiatría: "bg-amber-50 text-amber-700 ring-amber-200/70",
+  "Armas / CLU": "bg-orange-50 text-orange-800 ring-orange-200/70",
   Otro: "bg-stone-100 text-stone-600 ring-stone-200/70",
 };
 

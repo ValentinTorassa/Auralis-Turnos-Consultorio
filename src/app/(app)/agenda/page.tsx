@@ -3,7 +3,10 @@
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { DayTimeline } from "@/components/DayTimeline";
-import { AppointmentForm } from "@/components/AppointmentForm";
+import {
+  AppointmentForm,
+  AppointmentFormResult,
+} from "@/components/AppointmentForm";
 import { TaskPanel } from "@/components/TaskPanel";
 import { Button, Card, Empty, Modal } from "@/components/ui";
 import {
@@ -19,9 +22,10 @@ import {
   CalendarPlus,
   ChevronLeft,
   ChevronRight,
+  CheckCircle2,
 } from "lucide-react";
 import { IconBadge } from "@/components/Icons";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Id } from "../../../../convex/_generated/dataModel";
 
 type View = "day" | "week" | "month";
@@ -41,10 +45,14 @@ export default function AgendaPage() {
   const [openNew, setOpenNew] = useState(false);
   const [defaultTime, setDefaultTime] = useState<string | undefined>();
   const [editId, setEditId] = useState<Id<"appointments"> | null>(null);
+  const [highlightedId, setHighlightedId] = useState<Id<"appointments"> | null>(
+    null,
+  );
+  const [notice, setNotice] = useState<AppointmentFormResult | null>(null);
 
   const settings = useQuery(api.settings.get);
-  const workStart = Number((settings?.workDayStart ?? "08:00").split(":")[0]);
-  const workEnd = Number((settings?.workDayEnd ?? "20:00").split(":")[0]);
+  const workStart = settings?.workDayStart ?? "08:00";
+  const workEnd = settings?.workDayEnd ?? "20:00";
 
   const weekStart = startOfWeek(cursor);
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -77,6 +85,24 @@ export default function AgendaPage() {
     .sort((a, b) => a.startTime - b.startTime);
 
   const editAppt = appointments.find((a) => a._id === editId);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timeout = window.setTimeout(() => {
+      setNotice(null);
+      setHighlightedId(null);
+    }, 6000);
+    return () => window.clearTimeout(timeout);
+  }, [notice]);
+
+  function handleCreated(result: AppointmentFormResult) {
+    setOpenNew(false);
+    if (!result.created) return;
+    setCursor(result.date);
+    setView("day");
+    setHighlightedId(result.id);
+    setNotice(result);
+  }
 
   function shift(dir: -1 | 1) {
     if (view === "day") setCursor(addDays(cursor, dir));
@@ -168,6 +194,24 @@ export default function AgendaPage() {
         </div>
       </div>
 
+      {notice && (
+        <div
+          role="status"
+          className="flex items-start gap-2.5 rounded-2xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-900 shadow-sm"
+        >
+          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-teal-700" />
+          <p>
+            <span className="font-semibold">Actividad creada:</span>{" "}
+            {notice.activity}, {formatDateLong(notice.date)} de{" "}
+            {formatTime(notice.startTime)} a {formatTime(notice.endTime)}
+            {dayKeyFromMs(notice.endTime) !== notice.date
+              ? " del día siguiente"
+              : ""}
+            .
+          </p>
+        </div>
+      )}
+
       {view === "day" && (
         <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(19rem,1fr)]">
           <div className="order-2 min-w-0 lg:order-1">
@@ -176,6 +220,7 @@ export default function AgendaPage() {
               workStart={workStart}
               workEnd={workEnd}
               isToday={cursor === todayKey()}
+              highlightedId={highlightedId}
               onSelect={(id) => setEditId(id as Id<"appointments">)}
               onSlotClick={(hour, minute = 0) => {
                 setDefaultTime(
@@ -336,7 +381,7 @@ export default function AgendaPage() {
         <AppointmentForm
           defaultDate={cursor}
           defaultTime={defaultTime}
-          onDone={() => setOpenNew(false)}
+          onDone={handleCreated}
         />
       </Modal>
 

@@ -69,3 +69,41 @@ export function formatDateTime(timestamp: number): string {
     hour12: false,
   }).format(new Date(timestamp));
 }
+
+export function dateTimeParts(timestamp: number): { date: string; time: string } {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date(timestamp));
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return {
+    date: `${get("year")}-${get("month")}-${get("day")}`,
+    time: `${get("hour")}:${get("minute")}`,
+  };
+}
+
+export function timestampFromDateTime(date: string, time: string): number {
+  return new Date(`${date}T${time}:00-03:00`).getTime();
+}
+
+export function timeToMinutes(time: string): number {
+  const [hour, minute] = time.split(":").map(Number);
+  return (hour || 0) * 60 + (minute || 0);
+}
+
+export function minutesToTime(total: number): string {
+  const wrapped = ((total % 1440) + 1440) % 1440;
+  return `${String(Math.floor(wrapped / 60)).padStart(2, "0")}:${String(wrapped % 60).padStart(2, "0")}`;
+}
+
+export function pickerDateForTime(time: string): Date {
+  const [hour, minute] = time.split(":").map(Number);
+  const value = new Date();
+  value.setHours(hour || 0, minute || 0, 0, 0);
+  return value;
+}

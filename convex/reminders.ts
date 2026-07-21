@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireUserId } from "./lib";
+import { appointmentTypeRules } from "./appointmentTypeDefaults";
 
 export const pending = query({
   args: {},
@@ -80,6 +81,16 @@ export const fromAppointment = mutation({
     const userId = await requireUserId(ctx);
     const appt = await ctx.db.get(args.appointmentId);
     if (!appt || appt.userId !== userId) throw new Error("Turno no encontrado");
+    const type = await ctx.db.get(appt.typeId);
+    if (!type || type.userId !== userId) throw new Error("Tipo inválido");
+    if (!appointmentTypeRules(type).supportsReminder)
+      throw new Error("Este tipo de actividad no admite recordatorios");
+    const existing = await ctx.db
+      .query("reminders")
+      .withIndex("by_user_active", (q) => q.eq("userId", userId).eq("active", true))
+      .filter((q) => q.eq(q.field("appointmentId"), args.appointmentId))
+      .first();
+    if (existing) return existing._id;
     const dueAt = appt.startTime - args.hoursBefore * 60 * 60 * 1000;
     const patient = appt.patientId ? await ctx.db.get(appt.patientId) : null;
     const name = patient?.fullName ?? "paciente";

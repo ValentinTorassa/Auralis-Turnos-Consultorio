@@ -115,11 +115,31 @@ function TypeRow({ type }: { type: Doc<"appointmentTypes"> }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(type.name);
   const [color, setColor] = useState(type.color);
+  const [requiresPatient, setRequiresPatient] = useState(
+    type.requiresPatient ?? true,
+  );
+  const [tracksPayment, setTracksPayment] = useState(
+    type.tracksPayment ?? true,
+  );
+  const [supportsReminder, setSupportsReminder] = useState(
+    type.supportsReminder ?? true,
+  );
+  const [defaultDurationMin, setDefaultDurationMin] = useState(
+    type.defaultDurationMin ?? 50,
+  );
   const [error, setError] = useState("");
 
   async function handleSave() {
     if (!name.trim()) return;
-    await updateType({ id: type._id, name, color });
+    await updateType({
+      id: type._id,
+      name,
+      color,
+      requiresPatient,
+      tracksPayment,
+      supportsReminder,
+      defaultDurationMin,
+    });
     setEditing(false);
   }
 
@@ -140,39 +160,87 @@ function TypeRow({ type }: { type: Doc<"appointmentTypes"> }) {
   return (
     <li className="rounded-xl border border-stone-100 px-3 py-2 transition hover:border-stone-200">
       {editing ? (
-        <div className="flex items-center gap-2">
-          <Input
-            type="color"
-            className="h-9 w-12 shrink-0 p-1"
-            value={color}
-            onChange={(e) => setColor(e.target.value)}
-          />
-          <Input
-            className="h-9"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoFocus
-          />
-          <button
-            type="button"
-            onClick={() => void handleSave()}
-            className="rounded-lg p-2 text-teal-700 transition hover:bg-teal-50"
-            aria-label="Guardar"
-          >
-            <Check className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setEditing(false);
-              setName(type.name);
-              setColor(type.color);
-            }}
-            className="rounded-lg p-2 text-stone-500 transition hover:bg-stone-100"
-            aria-label="Cancelar"
-          >
-            <X className="h-4 w-4" />
-          </button>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Input
+              type="color"
+              className="h-9 w-12 shrink-0 p-1"
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
+            />
+            <Input
+              className="h-9"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div className="grid gap-2 text-xs text-stone-700 sm:grid-cols-3">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={requiresPatient}
+                onChange={(e) => setRequiresPatient(e.target.checked)}
+                className="accent-teal-700"
+              />
+              Requiere paciente
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={tracksPayment}
+                onChange={(e) => setTracksPayment(e.target.checked)}
+                className="accent-teal-700"
+              />
+              Registra pago
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={supportsReminder}
+                onChange={(e) => setSupportsReminder(e.target.checked)}
+                className="accent-teal-700"
+              />
+              Admite aviso
+            </label>
+          </div>
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <Label className="text-xs">Duración por defecto (min)</Label>
+              <Input
+                type="number"
+                min={5}
+                step={5}
+                className="h-9"
+                value={defaultDurationMin}
+                onChange={(e) => setDefaultDurationMin(Number(e.target.value))}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleSave()}
+              className="rounded-lg p-2 text-teal-700 transition hover:bg-teal-50"
+              aria-label="Guardar"
+            >
+              <Check className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEditing(false);
+                setName(type.name);
+                setColor(type.color);
+                setRequiresPatient(type.requiresPatient ?? true);
+                setTracksPayment(type.tracksPayment ?? true);
+                setSupportsReminder(type.supportsReminder ?? true);
+                setDefaultDurationMin(type.defaultDurationMin ?? 50);
+              }}
+              className="rounded-lg p-2 text-stone-500 transition hover:bg-stone-100"
+              aria-label="Cancelar"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       ) : (
         <div className="flex items-center gap-3">
@@ -188,6 +256,10 @@ function TypeRow({ type }: { type: Doc<"appointmentTypes"> }) {
               Psiquiatría
             </span>
           )}
+          <span className="hidden text-[11px] text-stone-400 sm:inline">
+            {type.requiresPatient === false ? "Sin paciente" : "Paciente"} ·{" "}
+            {type.defaultDurationMin ?? 50} min
+          </span>
           <button
             type="button"
             onClick={() => setEditing(true)}
@@ -196,14 +268,16 @@ function TypeRow({ type }: { type: Doc<"appointmentTypes"> }) {
           >
             <Pencil className="h-4 w-4" />
           </button>
-          <button
-            type="button"
-            onClick={() => void handleDelete()}
-            className="rounded-lg p-2 text-stone-400 transition hover:bg-rose-50 hover:text-rose-600"
-            aria-label="Eliminar"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          {!type.isSystemType && (
+            <button
+              type="button"
+              onClick={() => void handleDelete()}
+              className="rounded-lg p-2 text-stone-400 transition hover:bg-rose-50 hover:text-rose-600"
+              aria-label="Eliminar"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
         </div>
       )}
       {error && <p className="mt-1.5 text-xs text-rose-600">{error}</p>}
@@ -219,6 +293,10 @@ export default function ConfigPage() {
 
   const [newTypeName, setNewTypeName] = useState("");
   const [newTypeColor, setNewTypeColor] = useState("#6366F1");
+  const [newRequiresPatient, setNewRequiresPatient] = useState(true);
+  const [newTracksPayment, setNewTracksPayment] = useState(true);
+  const [newSupportsReminder, setNewSupportsReminder] = useState(true);
+  const [newDefaultDurationMin, setNewDefaultDurationMin] = useState(50);
 
   return (
     <div className="anim-page space-y-5 max-w-2xl">
@@ -266,24 +344,71 @@ export default function ConfigPage() {
             <TypeRow key={t._id} type={t} />
           ))}
         </ul>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Input
-            placeholder="Nuevo tipo..."
-            value={newTypeName}
-            onChange={(e) => setNewTypeName(e.target.value)}
-          />
-          <Input
-            type="color"
-            className="h-11 w-full sm:w-20 p-1"
-            value={newTypeColor}
-            onChange={(e) => setNewTypeColor(e.target.value)}
-          />
+        <div className="space-y-3 rounded-2xl bg-stone-50 p-3">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              placeholder="Nuevo tipo..."
+              value={newTypeName}
+              onChange={(e) => setNewTypeName(e.target.value)}
+            />
+            <Input
+              type="color"
+              className="h-11 w-full p-1 sm:w-20"
+              value={newTypeColor}
+              onChange={(e) => setNewTypeColor(e.target.value)}
+            />
+            <Input
+              type="number"
+              min={5}
+              step={5}
+              aria-label="Duración por defecto en minutos"
+              className="sm:w-28"
+              value={newDefaultDurationMin}
+              onChange={(e) => setNewDefaultDurationMin(Number(e.target.value))}
+            />
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-stone-700">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={newRequiresPatient}
+                onChange={(e) => setNewRequiresPatient(e.target.checked)}
+                className="accent-teal-700"
+              />
+              Requiere paciente
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={newTracksPayment}
+                onChange={(e) => setNewTracksPayment(e.target.checked)}
+                className="accent-teal-700"
+              />
+              Registra pago
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={newSupportsReminder}
+                onChange={(e) => setNewSupportsReminder(e.target.checked)}
+                className="accent-teal-700"
+              />
+              Admite aviso
+            </label>
+          </div>
           <Button
             type="button"
             variant="outline"
-            disabled={!newTypeName.trim()}
+            disabled={!newTypeName.trim() || newDefaultDurationMin < 5}
             onClick={async () => {
-              await createType({ name: newTypeName, color: newTypeColor });
+              await createType({
+                name: newTypeName,
+                color: newTypeColor,
+                requiresPatient: newRequiresPatient,
+                tracksPayment: newTracksPayment,
+                supportsReminder: newSupportsReminder,
+                defaultDurationMin: newDefaultDurationMin,
+              });
               setNewTypeName("");
             }}
           >

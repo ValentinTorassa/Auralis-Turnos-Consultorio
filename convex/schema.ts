@@ -11,6 +11,12 @@ export default defineSchema({
     color: v.string(),
     isPsychiatrist: v.boolean(),
     sortOrder: v.number(),
+    code: v.optional(v.string()),
+    requiresPatient: v.optional(v.boolean()),
+    tracksPayment: v.optional(v.boolean()),
+    supportsReminder: v.optional(v.boolean()),
+    defaultDurationMin: v.optional(v.number()),
+    isSystemType: v.optional(v.boolean()),
   }).index("by_user", ["userId"]),
 
   patients: defineTable({
@@ -76,10 +82,20 @@ export default defineSchema({
     dueAt: v.number(),
     active: v.boolean(),
     done: v.boolean(),
+    notificationSentAt: v.optional(v.number()),
     createdAt: v.number(),
   })
     .index("by_user_active", ["userId", "active", "dueAt"])
     .index("by_user_due", ["userId", "dueAt"]),
+
+  pushTokens: defineTable({
+    userId: v.id("users"),
+    token: v.string(),
+    platform: v.union(v.literal("ios"), v.literal("android")),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_token", ["token"]),
 
   settings: defineTable({
     userId: v.id("users"),

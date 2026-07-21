@@ -91,7 +91,7 @@ function PatientForm({
       <div>
         <Label>Tipo de atención</Label>
         <Select value={careType} onChange={(e) => setCareType(e.target.value)}>
-          {["Consultorio", "Pericia", "Psiquiatría", "Otro"].map((t) => (
+          {["Consultorio", "Pericia", "Psiquiatría", "Armas / CLU", "Otro"].map((t) => (
             <option key={t} value={t}>
               {t}
             </option>

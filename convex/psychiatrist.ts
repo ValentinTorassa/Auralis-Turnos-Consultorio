@@ -47,6 +47,12 @@ export const ensureMonths = mutation({
         color: "#F59E0B",
         isPsychiatrist: true,
         sortOrder: 99,
+        code: "psiquiatria",
+        requiresPatient: true,
+        tracksPayment: true,
+        supportsReminder: true,
+        defaultDurationMin: 30,
+        isSystemType: true,
       });
       psyType = (await ctx.db.get(id))!;
     }

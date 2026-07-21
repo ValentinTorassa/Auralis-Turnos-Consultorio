@@ -1,8 +1,10 @@
 import { Clock3, CreditCard } from "lucide-react-native";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useRouter } from "expo-router";
+import { useState } from "react";
 
 import { colors } from "@/constants/auralis";
-import { formatTime } from "@/lib/date";
+import { dateTimeParts, formatTime } from "@/lib/date";
 
 type Appointment = {
   _id: string;
@@ -14,14 +16,21 @@ type Appointment = {
   notes?: string;
   patient?: { fullName: string } | null;
   type?: { name: string; color: string } | null;
+  _creationTime?: number;
 };
 
 export function AppointmentCard({ appointment }: { appointment: Appointment }) {
+  const router = useRouter();
   const accent = appointment.type?.color ?? colors.teal;
   const cancelled = appointment.status === "cancelled" || appointment.status === "no_show";
+  const [recentlyCreated] = useState(() => appointment._creationTime ? Date.now() - appointment._creationTime < 12_000 : false);
 
   return (
-    <View style={[styles.card, cancelled && styles.cancelled]}>
+    <Pressable
+      accessibilityLabel={`Editar ${appointment.patient?.fullName ?? appointment.title ?? "actividad"}`}
+      onPress={() => router.push({ pathname: "/appointment", params: { id: appointment._id, date: dateTimeParts(appointment.startTime).date } } as never)}
+      style={({ pressed }) => [styles.card, recentlyCreated && styles.created, cancelled && styles.cancelled, pressed && styles.pressed]}
+    >
       <View style={[styles.accent, { backgroundColor: accent }]} />
       <View style={styles.content}>
         <View style={styles.topRow}>
@@ -46,12 +55,14 @@ export function AppointmentCard({ appointment }: { appointment: Appointment }) {
         </View>
         {appointment.notes ? <Text style={styles.notes} numberOfLines={2}>{appointment.notes}</Text> : null}
       </View>
-    </View>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   card: { minHeight: 106, borderRadius: 20, overflow: "hidden", flexDirection: "row", borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.surface },
+  created: { borderWidth: 2, borderColor: colors.green, backgroundColor: "#F0FDF4" },
+  pressed: { opacity: 0.82 },
   cancelled: { opacity: 0.5 },
   accent: { width: 6 },
   content: { flex: 1, padding: 14, gap: 5 },

@@ -36,7 +36,19 @@
         }
       ],
       "expo-secure-store",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Permití que Auralis use Face ID para proteger los datos de la agenda."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "appointments"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

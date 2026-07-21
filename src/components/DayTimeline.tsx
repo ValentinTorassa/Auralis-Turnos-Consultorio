@@ -1,5 +1,6 @@
 "use client";
 
+import { formatTimelineMinute, getTimelineBounds } from "@/lib/agenda";
 import { formatTime, cn } from "@/lib/utils";
 import { useNow } from "@/lib/useNow";
 import { Badge } from "./ui";
@@ -18,6 +19,7 @@ type Appt = {
 };
 
 const HOUR_HEIGHT = 76;
+const PIXELS_PER_MINUTE = HOUR_HEIGHT / 60;
 
 function minutesInDay(ms: number): number {
   const parts = new Intl.DateTimeFormat("en-GB", {
@@ -31,7 +33,6 @@ function minutesInDay(ms: number): number {
   return h * 60 + m;
 }
 
-/** Asigna carriles a turnos superpuestos para mostrarlos lado a lado. */
 function layoutLanes(appointments: Appt[]) {
   const sorted = [...appointments].sort(
     (a, b) => a.startTime - b.startTime || a.endTime - b.endTime,
@@ -72,97 +73,195 @@ export function DayTimeline({
   appointments,
   onSelect,
   onSlotClick,
-  workStart = 8,
-  workEnd = 20,
+  workStart = "08:00",
+  workEnd = "20:00",
   isToday = false,
+  highlightedId,
 }: {
   appointments: Appt[];
   onSelect: (id: string) => void;
   onSlotClick?: (hour: number, minute?: number) => void;
-  workStart?: number;
-  workEnd?: number;
+  workStart?: string;
+  workEnd?: string;
   isToday?: boolean;
+  highlightedId?: string | null;
 }) {
   const now = useNow();
   const nowLineRef = useRef<HTMLDivElement>(null);
+  const highlightedRef = useRef<HTMLButtonElement>(null);
   const scrolledRef = useRef(false);
-
-  const hours = Array.from(
-    { length: Math.max(1, workEnd - workStart) },
-    (_, i) => workStart + i,
-  );
-  const totalMinutes = Math.max(60, (workEnd - workStart) * 60);
-  const totalHeight = (totalMinutes / 60) * HOUR_HEIGHT;
-
+  const eventSpans = appointments.map((appointment) => {
+    const startMinute = minutesInDay(appointment.startTime);
+    return {
+      startMinute,
+      endMinute:
+        startMinute +
+        Math.max(1, (appointment.endTime - appointment.startTime) / 60000),
+    };
+  });
+  const appointmentIds = appointments
+    .map((appointment) => appointment._id)
+    .join(",");
+  const { habitualStart, habitualEnd, displayStart, displayEnd } =
+    getTimelineBounds(workStart, workEnd, eventSpans);
+  const totalMinutes = Math.max(30, displayEnd - displayStart);
+  const totalHeight = totalMinutes * PIXELS_PER_MINUTE;
   const toTop = (minutes: number) =>
-    ((minutes - workStart * 60) / totalMinutes) * totalHeight;
+    (minutes - displayStart) * PIXELS_PER_MINUTE;
 
+  const boundaries = [displayStart];
+  for (
+    let minute = Math.ceil(displayStart / 30) * 30;
+    minute < displayEnd;
+    minute += 30
+  ) {
+    if (minute > displayStart) boundaries.push(minute);
+  }
+  const slotStarts = boundaries.filter((minute) => minute < displayEnd);
   const nowMinutes = now > 0 ? minutesInDay(now) : null;
   const showNowLine =
     isToday &&
     nowMinutes !== null &&
-    nowMinutes >= workStart * 60 &&
-    nowMinutes <= workEnd * 60;
+    nowMinutes >= displayStart &&
+    nowMinutes <= displayEnd;
 
   useEffect(() => {
-    if (!showNowLine || scrolledRef.current) return;
+    if (!showNowLine || scrolledRef.current || highlightedId) return;
     scrolledRef.current = true;
     nowLineRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
-  }, [showNowLine]);
+  }, [highlightedId, showNowLine]);
+
+  useEffect(() => {
+    if (!highlightedId || !highlightedRef.current) return;
+    highlightedRef.current.focus({ preventScroll: true });
+    highlightedRef.current.scrollIntoView({
+      block: "center",
+      behavior: "smooth",
+    });
+  }, [appointmentIds, highlightedId]);
 
   const placed = layoutLanes(appointments);
 
   return (
     <div className="relative overflow-hidden rounded-3xl border border-stone-200/90 bg-white shadow-sm">
       <div className="relative" style={{ height: totalHeight }}>
-        {hours.map((h, i) => (
+        {displayStart < habitualStart && (
           <div
-            key={h}
-            className="absolute left-0 right-0 flex border-t border-stone-100"
-            style={{ top: i * HOUR_HEIGHT, height: HOUR_HEIGHT }}
+            className="pointer-events-none absolute left-0 right-0 bg-amber-50/45"
+            style={{
+              top: 0,
+              height: toTop(habitualStart),
+            }}
           >
-            <span className="w-14 shrink-0 pt-1 pl-2.5 text-xs font-semibold tabular-nums text-stone-400">
-              {String(h).padStart(2, "0")}:00
+            <span className="absolute right-3 top-2 text-[10px] font-medium uppercase tracking-wide text-amber-700/60">
+              Fuera del horario habitual
             </span>
-            <div className="flex flex-1 flex-col">
-              <button
-                type="button"
-                aria-label={`Nuevo turno ${String(h).padStart(2, "0")}:00`}
-                onClick={() => onSlotClick?.(h, 0)}
-                className="flex-1 transition hover:bg-teal-50/60"
-              />
-              <button
-                type="button"
-                aria-label={`Nuevo turno ${String(h).padStart(2, "0")}:30`}
-                onClick={() => onSlotClick?.(h, 30)}
-                className="flex-1 border-t border-dashed border-stone-100/80 transition hover:bg-teal-50/60"
-              />
-            </div>
           </div>
-        ))}
+        )}
+        {displayEnd > habitualEnd && (
+          <div
+            className="pointer-events-none absolute left-0 right-0 bg-violet-50/40"
+            style={{
+              top: toTop(habitualEnd),
+              height: (displayEnd - habitualEnd) * PIXELS_PER_MINUTE,
+            }}
+          >
+            <span className="absolute right-3 top-2 text-[10px] font-medium uppercase tracking-wide text-violet-700/55">
+              Extensión de agenda
+            </span>
+          </div>
+        )}
 
-        {placed.map(({ appt: a, lane, laneCount }) => {
-          const startMin = minutesInDay(a.startTime);
-          const durationMin = Math.max(15, (a.endTime - a.startTime) / 60000);
-          const top = Math.max(0, toTop(startMin));
-          const height = Math.max(38, (durationMin / totalMinutes) * totalHeight);
-          const isPast = now > 0 && a.endTime < now;
-          const isCurrent = now > 0 && a.startTime <= now && a.endTime >= now;
-          const cancelled = a.status === "cancelled" || a.status === "no_show";
-          const label = a.patient?.fullName || a.title || a.type?.name || "Turno";
-          const color = a.type?.color ?? "#64748B";
+        {slotStarts.map((minute, index) => {
+          const next = boundaries[index + 1] ?? displayEnd;
+          const isHour = minute % 60 === 0;
+          const canCreate = minute < 1440;
+          return canCreate ? (
+            <button
+              key={minute}
+              type="button"
+              aria-label={`Nuevo turno ${formatTimelineMinute(minute)}`}
+              onClick={() =>
+                onSlotClick?.(Math.floor(minute / 60), minute % 60)
+              }
+              className={cn(
+                "absolute left-14 right-0 z-[1] border-t transition hover:bg-teal-50/60",
+                isHour
+                  ? "border-stone-100"
+                  : "border-dashed border-stone-100/80",
+              )}
+              style={{
+                top: toTop(minute),
+                height: (next - minute) * PIXELS_PER_MINUTE,
+              }}
+            />
+          ) : (
+            <div
+              key={minute}
+              className={cn(
+                "absolute left-14 right-0 border-t",
+                isHour
+                  ? "border-stone-100"
+                  : "border-dashed border-stone-100/80",
+              )}
+              style={{
+                top: toTop(minute),
+                height: (next - minute) * PIXELS_PER_MINUTE,
+              }}
+            />
+          );
+        })}
+
+        {boundaries.map((minute) =>
+          minute === displayStart || minute % 60 === 0 ? (
+            <span
+              key={`label-${minute}`}
+              className="absolute left-0 w-14 -translate-y-1/2 pl-2.5 text-xs font-semibold tabular-nums text-stone-400"
+              style={{ top: toTop(minute) }}
+            >
+              {formatTimelineMinute(minute)}
+            </span>
+          ) : null,
+        )}
+
+        {placed.map(({ appt: appointment, lane, laneCount }) => {
+          const startMinute = minutesInDay(appointment.startTime);
+          const durationMinute = Math.max(
+            15,
+            (appointment.endTime - appointment.startTime) / 60000,
+          );
+          const top = toTop(startMinute);
+          const height = Math.max(38, durationMinute * PIXELS_PER_MINUTE);
+          const isPast = now > 0 && appointment.endTime < now;
+          const isCurrent =
+            now > 0 &&
+            appointment.startTime <= now &&
+            appointment.endTime >= now;
+          const cancelled =
+            appointment.status === "cancelled" ||
+            appointment.status === "no_show";
+          const label =
+            appointment.patient?.fullName ||
+            appointment.title ||
+            appointment.type?.name ||
+            "Turno";
+          const color = appointment.type?.color ?? "#64748B";
           const widthPct = 100 / laneCount;
+          const highlighted = highlightedId === appointment._id;
 
           return (
             <button
-              key={a._id}
+              ref={highlighted ? highlightedRef : undefined}
+              key={appointment._id}
               type="button"
-              onClick={() => onSelect(a._id)}
+              onClick={() => onSelect(appointment._id)}
               className={cn(
-                "absolute z-10 overflow-hidden rounded-xl border-l-4 px-3 py-1.5 text-left shadow-sm backdrop-blur-[1px] transition hover:z-20 hover:shadow-md hover:brightness-[0.97]",
+                "absolute z-10 overflow-hidden rounded-xl border-l-4 px-3 py-1.5 text-left shadow-sm backdrop-blur-[1px] transition hover:z-20 hover:shadow-md hover:brightness-[0.97] focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2",
                 cancelled && "opacity-45 line-through",
                 isCurrent && "ring-2 ring-amber-400 ring-offset-1",
                 isPast && !cancelled && "opacity-70",
+                highlighted &&
+                  "z-30 animate-pulse ring-4 ring-teal-400 ring-offset-2",
               )}
               style={{
                 top,
@@ -179,8 +278,10 @@ export function DayTimeline({
                     {label}
                   </p>
                   <p className="truncate text-xs tabular-nums text-stone-600">
-                    {formatTime(a.startTime)} – {formatTime(a.endTime)}
-                    {a.type && laneCount === 1 ? ` · ${a.type.name}` : ""}
+                    {formatTime(appointment.startTime)} – {formatTime(appointment.endTime)}
+                    {appointment.type && laneCount === 1
+                      ? ` · ${appointment.type.name}`
+                      : ""}
                   </p>
                 </div>
                 {isCurrent && !cancelled && (
@@ -189,9 +290,9 @@ export function DayTimeline({
                   </Badge>
                 )}
               </div>
-              {a.notes && height > 56 && (
+              {appointment.notes && height > 56 && (
                 <p className="mt-0.5 truncate text-xs text-stone-500">
-                  {a.notes}
+                  {appointment.notes}
                 </p>
               )}
             </button>

@@ -3,7 +3,7 @@
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Button,
   Input,
@@ -29,6 +29,15 @@ type Appt = {
   paymentNotes?: string;
   status: "confirmed" | "cancelled" | "no_show" | "completed";
   reminderEnabled: boolean;
+};
+
+export type AppointmentFormResult = {
+  id: Id<"appointments">;
+  created: boolean;
+  activity: string;
+  date: string;
+  startTime: number;
+  endTime: number;
 };
 
 function toDateParts(ms: number) {
@@ -70,14 +79,13 @@ export function AppointmentForm({
   defaultDate?: string;
   defaultTime?: string;
   defaultPatientId?: Id<"patients">;
-  onDone: () => void;
+  onDone: (result: AppointmentFormResult) => void;
 }) {
   const types = useQuery(api.types.list);
   const settings = useQuery(api.settings.get);
   const create = useMutation(api.appointments.create);
   const update = useMutation(api.appointments.update);
   const remove = useMutation(api.appointments.remove);
-  const addReminder = useMutation(api.reminders.fromAppointment);
 
   const startParts = initial
     ? toDateParts(initial.startTime)
@@ -96,6 +104,11 @@ export function AppointmentForm({
   const [endTime, setEndTime] = useState(
     endParts?.time ?? minToTime(timeToMin(startParts.time) + defaultDuration),
   );
+  const [endsNextDay, setEndsNextDay] = useState(
+    initial
+      ? Boolean(endParts && endParts.date !== startParts.date)
+      : timeToMin(startParts.time) + defaultDuration >= 1440,
+  );
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [paymentStatus, setPaymentStatus] = useState<Appt["paymentStatus"]>(
     initial?.paymentStatus ?? "unpaid",
@@ -110,9 +123,14 @@ export function AppointmentForm({
   const [reminder, setReminder] = useState(initial?.reminderEnabled ?? false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const submittingRef = useRef(false);
 
   // Sin efecto: si todavía no se eligió tipo, usamos el primero disponible.
   const effectiveTypeId = typeId || types?.[0]?._id || "";
+  const selectedType = types?.find((type) => type._id === effectiveTypeId);
+  const requiresPatient = selectedType?.requiresPatient ?? true;
+  const tracksPayment = selectedType?.tracksPayment ?? true;
+  const supportsReminder = selectedType?.supportsReminder ?? true;
 
   const warnings = useQuery(
     api.patients.warnings,
@@ -123,58 +141,107 @@ export function AppointmentForm({
 
   function handleStartChange(next: string) {
     // Mantiene la duración corriendo el horario de fin junto con el de inicio.
-    const duration = Math.max(5, timeToMin(endTime) - timeToMin(startTime));
+    const rawDuration =
+      timeToMin(endTime) - timeToMin(startTime) + (endsNextDay ? 1440 : 0);
+    const duration = Math.max(5, rawDuration);
     setStartTime(next);
-    if (next) setEndTime(minToTime(timeToMin(next) + duration));
+    if (next) {
+      const nextEnd = timeToMin(next) + duration;
+      setEndTime(minToTime(nextEnd));
+      setEndsNextDay(nextEnd >= 1440);
+    }
+  }
+
+  function handleTypeChange(nextId: string) {
+    setTypeId(nextId);
+    const nextType = types?.find((type) => type._id === nextId);
+    if (!nextType) return;
+    const duration =
+      nextType.defaultDurationMin ?? settings?.defaultDurationMin ?? 50;
+    const nextEnd = timeToMin(startTime) + duration;
+    setEndTime(minToTime(nextEnd));
+    setEndsNextDay(nextEnd >= 1440);
+    if (nextType.tracksPayment === false) setPaymentStatus("na");
+    if (nextType.supportsReminder === false) setReminder(false);
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSave) return;
+    if (!canSave || submittingRef.current) return;
+    if (!selectedType) {
+      setError("Elegí un tipo de actividad.");
+      return;
+    }
+    if (requiresPatient && !patientId) {
+      setError("Elegí el paciente para este tipo de actividad.");
+      return;
+    }
+    if (!requiresPatient && !title.trim()) {
+      setError("Ingresá un título para la actividad sin paciente.");
+      return;
+    }
+    if (timeToMin(endTime) <= timeToMin(startTime) && !endsNextDay) {
+      setError(
+        "La hora de fin debe ser posterior. Si termina mañana, marcá ‘Finaliza al día siguiente’.",
+      );
+      return;
+    }
+    submittingRef.current = true;
     setSaving(true);
     setError("");
     try {
       const start = parseLocalDateTime(date, startTime);
-      const end = parseLocalDateTime(date, endTime);
-      if (initial) {
-        await update({
-          id: initial._id,
-          patientId: patientId ?? null,
-          typeId: effectiveTypeId as Id<"appointmentTypes">,
-          title: title || undefined,
-          startTime: start,
-          endTime: end,
-          notes,
-          paymentStatus,
-          paymentMethod: paymentMethod || undefined,
-          paymentNotes: paymentNotes || undefined,
-          status,
-          reminderEnabled: reminder,
-        });
-        if (reminder && !initial.reminderEnabled) {
-          await addReminder({ appointmentId: initial._id, hoursBefore: 24 });
-        }
-      } else {
-        const id = await create({
-          patientId,
-          typeId: effectiveTypeId as Id<"appointmentTypes">,
-          title: title || undefined,
-          startTime: start,
-          endTime: end,
-          notes,
-          paymentStatus,
-          paymentMethod: paymentMethod || undefined,
-          paymentNotes: paymentNotes || undefined,
-          reminderEnabled: reminder,
-        });
-        if (reminder) {
-          await addReminder({ appointmentId: id, hoursBefore: 24 });
-        }
+      const end =
+        parseLocalDateTime(date, endTime) + (endsNextDay ? 86400000 : 0);
+      if (end <= start) {
+        throw new Error("La hora de fin debe ser posterior a la de inicio.");
       }
-      onDone();
+      const submittedPatientId = requiresPatient ? patientId : undefined;
+      const submittedPaymentStatus = tracksPayment ? paymentStatus : "na";
+      const submittedReminder = supportsReminder ? reminder : false;
+      let id: Id<"appointments">;
+      if (initial) {
+        id = await update({
+          id: initial._id,
+          patientId: submittedPatientId ?? null,
+          typeId: effectiveTypeId as Id<"appointmentTypes">,
+          title: title || undefined,
+          startTime: start,
+          endTime: end,
+          notes,
+          paymentStatus: submittedPaymentStatus,
+          paymentMethod: tracksPayment ? paymentMethod || undefined : undefined,
+          paymentNotes: tracksPayment ? paymentNotes || undefined : undefined,
+          status,
+          reminderEnabled: submittedReminder,
+        });
+      } else {
+        id = await create({
+          patientId: submittedPatientId,
+          typeId: effectiveTypeId as Id<"appointmentTypes">,
+          title: title || undefined,
+          startTime: start,
+          endTime: end,
+          notes,
+          paymentStatus: submittedPaymentStatus,
+          paymentMethod: tracksPayment ? paymentMethod || undefined : undefined,
+          paymentNotes: tracksPayment ? paymentNotes || undefined : undefined,
+          reminderEnabled: submittedReminder,
+        });
+      }
+      onDone({
+        id,
+        created: !initial,
+        activity: selectedType.name,
+        date,
+        startTime: start,
+        endTime: end,
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al guardar");
+      const message = err instanceof Error ? err.message : "Error al guardar";
+      setError(message.split("Uncaught Error: ").pop()?.split("\n")[0] ?? message);
     } finally {
+      submittingRef.current = false;
       setSaving(false);
     }
   }
@@ -182,18 +249,12 @@ export function AppointmentForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <Label>Paciente</Label>
-        <PatientPicker value={patientId} onChange={(id) => setPatientId(id)} />
-      </div>
-
-      {warnings && warnings.length > 0 && <WarningBox items={warnings} />}
-
-      <div>
-        <Label>Tipo de turno</Label>
+        <Label>Tipo de actividad</Label>
         <Select
           value={effectiveTypeId}
-          onChange={(e) => setTypeId(e.target.value)}
+          onChange={(e) => handleTypeChange(e.target.value)}
           required
+          autoFocus
         >
           {(types ?? []).map((t) => (
             <option key={t._id} value={t._id}>
@@ -203,12 +264,25 @@ export function AppointmentForm({
         </Select>
       </div>
 
+      {requiresPatient && (
+        <div>
+          <Label>Paciente (obligatorio)</Label>
+          <PatientPicker value={patientId} onChange={(id) => setPatientId(id)} />
+        </div>
+      )}
+
+      {requiresPatient && warnings && warnings.length > 0 && (
+        <WarningBox items={warnings} />
+      )}
+
       <div>
-        <Label>Título (opcional)</Label>
+        <Label>
+          Título {requiresPatient ? "(opcional)" : "(obligatorio)"}
+        </Label>
         <Input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Si no hay paciente, ej. Reunión"
+          placeholder={requiresPatient ? "Detalle opcional" : "Ej. Curso de capacitación"}
         />
       </div>
 
@@ -242,6 +316,21 @@ export function AppointmentForm({
         </div>
       </div>
 
+      <label className="flex items-center gap-3 rounded-2xl border border-stone-200 px-3 py-2.5 transition hover:bg-stone-50">
+        <input
+          type="checkbox"
+          checked={endsNextDay}
+          onChange={(e) => setEndsNextDay(e.target.checked)}
+          className="h-5 w-5 rounded border-stone-300 accent-teal-700"
+        />
+        <span className="text-sm text-stone-700">Finaliza al día siguiente</span>
+      </label>
+      {timeToMin(endTime) <= timeToMin(startTime) && !endsNextDay && (
+        <p className="text-sm text-amber-700">
+          El fin no puede ser anterior al inicio, salvo que finalice mañana.
+        </p>
+      )}
+
       <div>
         <Label>Observaciones</Label>
         <Textarea
@@ -251,42 +340,46 @@ export function AppointmentForm({
         />
       </div>
 
-      <div>
-        <Label>Pago</Label>
-        <Segmented
-          value={paymentStatus}
-          onChange={setPaymentStatus}
-          options={[
-            {
-              value: "unpaid",
-              label: "No pagó",
-              activeClass: "text-rose-700",
-            },
-            { value: "paid", label: "Pagó", activeClass: "text-teal-700" },
-            { value: "owes", label: "Debe", activeClass: "text-amber-700" },
-            { value: "na", label: "N/A" },
-          ]}
-        />
-      </div>
+      {tracksPayment && (
+        <div>
+          <Label>Pago</Label>
+          <Segmented
+            value={paymentStatus}
+            onChange={setPaymentStatus}
+            options={[
+              {
+                value: "unpaid",
+                label: "No pagó",
+                activeClass: "text-rose-700",
+              },
+              { value: "paid", label: "Pagó", activeClass: "text-teal-700" },
+              { value: "owes", label: "Debe", activeClass: "text-amber-700" },
+              { value: "na", label: "N/A" },
+            ]}
+          />
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <Label>Forma de pago</Label>
-          <Input
-            value={paymentMethod}
-            onChange={(e) => setPaymentMethod(e.target.value)}
-            placeholder="Efectivo, transferencia..."
-          />
+      {tracksPayment && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <Label>Forma de pago</Label>
+            <Input
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value)}
+              placeholder="Efectivo, transferencia..."
+            />
+          </div>
+          <div>
+            <Label>Nota de pago</Label>
+            <Input
+              value={paymentNotes}
+              onChange={(e) => setPaymentNotes(e.target.value)}
+              placeholder="Observación rápida"
+            />
+          </div>
         </div>
-        <div>
-          <Label>Nota de pago</Label>
-          <Input
-            value={paymentNotes}
-            onChange={(e) => setPaymentNotes(e.target.value)}
-            placeholder="Observación rápida"
-          />
-        </div>
-      </div>
+      )}
 
       {initial && (
         <div>
@@ -320,17 +413,19 @@ export function AppointmentForm({
         </div>
       )}
 
-      <label className="flex items-center gap-3 rounded-2xl border border-stone-200 px-3 py-3 transition hover:bg-stone-50">
-        <input
-          type="checkbox"
-          checked={reminder}
-          onChange={(e) => setReminder(e.target.checked)}
-          className="h-5 w-5 rounded border-stone-300 accent-teal-700"
-        />
-        <span className="text-sm text-stone-700">
-          Recordarme avisar al paciente (24 h antes)
-        </span>
-      </label>
+      {supportsReminder && (
+        <label className="flex items-center gap-3 rounded-2xl border border-stone-200 px-3 py-3 transition hover:bg-stone-50">
+          <input
+            type="checkbox"
+            checked={reminder}
+            onChange={(e) => setReminder(e.target.checked)}
+            className="h-5 w-5 rounded border-stone-300 accent-teal-700"
+          />
+          <span className="text-sm text-stone-700">
+            Recordarme avisar al paciente (24 h antes)
+          </span>
+        </label>
+      )}
 
       {error && (
         <p className="rounded-xl bg-rose-50 px-3 py-2.5 text-sm text-rose-700 ring-1 ring-rose-100">
@@ -349,7 +444,14 @@ export function AppointmentForm({
             onClick={async () => {
               if (!confirm("¿Eliminar este turno?")) return;
               await remove({ id: initial._id });
-              onDone();
+              onDone({
+                id: initial._id,
+                created: false,
+                activity: selectedType?.name ?? "Actividad",
+                date,
+                startTime: initial.startTime,
+                endTime: initial.endTime,
+              });
             }}
           >
             Eliminar

@@ -4,15 +4,28 @@ import { useMutation } from "convex/react";
 import { useConvexAuth } from "convex/react";
 import { useEffect, useRef } from "react";
 import { StatusBar } from "expo-status-bar";
+import * as Notifications from "expo-notifications";
 
 import { api } from "@auralis/backend/api";
 import { AuralisConvexProvider } from "@/lib/convex";
+import { AppLockProvider } from "@/lib/app-lock";
+import { configureNotifications, expoPushToken } from "@/lib/notifications";
+import { Platform } from "react-native";
 
 void SplashScreen.preventAutoHideAsync();
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
 
 function AuthenticatedRouter() {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const ensureSeeded = useMutation(api.users.ensureSeeded);
+  const registerPushToken = useMutation(api.pushTokens.register);
   const seeded = useRef(false);
   const segments = useSegments();
   const router = useRouter();
@@ -34,12 +47,30 @@ function AuthenticatedRouter() {
     });
   }, [ensureSeeded, isAuthenticated]);
 
+  useEffect(() => {
+    void configureNotifications();
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated || Platform.OS === "web") return;
+    void expoPushToken().then((token) => {
+      if (!token) return;
+      return registerPushToken({
+        token,
+        platform: Platform.OS === "ios" ? "ios" : "android",
+      });
+    });
+  }, [isAuthenticated, registerPushToken]);
+
   return (
     <>
       <StatusBar style="dark" />
       <Stack screenOptions={{ headerShown: false, animation: "fade" }}>
         <Stack.Screen name="login" />
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="appointment" options={{ presentation: "modal" }} />
+        <Stack.Screen name="patient/[id]" />
+        <Stack.Screen name="patient-editor" options={{ presentation: "modal" }} />
       </Stack>
     </>
   );
@@ -48,7 +79,9 @@ function AuthenticatedRouter() {
 export default function RootLayout() {
   return (
     <AuralisConvexProvider>
-      <AuthenticatedRouter />
+      <AppLockProvider>
+        <AuthenticatedRouter />
+      </AppLockProvider>
     </AuralisConvexProvider>
   );
 }
