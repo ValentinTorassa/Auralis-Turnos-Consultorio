@@ -23,6 +23,7 @@ type DatePickerProps = {
   required?: boolean
   className?: string
   placeholder?: string
+  displayFormat?: "short" | "long"
   "aria-label"?: string
 }
 
@@ -35,6 +36,7 @@ export function DatePicker({
   required,
   className,
   placeholder = "Elegir fecha",
+  displayFormat = "short",
   "aria-label": ariaLabel = "Elegir fecha",
 }: DatePickerProps) {
   const [open, setOpen] = React.useState(false)
@@ -42,7 +44,7 @@ export function DatePicker({
   const label = selected
     ? new Intl.DateTimeFormat("es-AR", {
         day: "2-digit",
-        month: "short",
+        month: displayFormat === "long" ? "long" : "short",
         year: "numeric",
         timeZone: APP_TIME_ZONE,
       }).format(selected)

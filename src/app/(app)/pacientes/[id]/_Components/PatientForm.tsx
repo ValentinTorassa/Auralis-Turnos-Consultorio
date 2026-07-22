@@ -133,14 +133,20 @@ export function PatientForm({
           onChange={(event) => updateDraft({ adminNotes: event.target.value })}
         />
       </div>
-      <div className="flex items-center gap-3">
-        <Button type="submit" disabled={saving}>
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+        {saved ? (
+          <span className="text-center text-sm text-teal-700 sm:text-right">
+            Guardado ✓
+          </span>
+        ) : null}
+        <Button
+          type="submit"
+          className="w-full sm:min-w-36 sm:w-auto"
+          disabled={saving}
+        >
           <Save className="h-4 w-4" />
           {saving ? "Guardando..." : "Guardar"}
         </Button>
-        {saved ? (
-          <span className="text-sm text-teal-700">Guardado ✓</span>
-        ) : null}
       </div>
       {error ? (
         <p role="alert" className="text-sm text-rose-700">

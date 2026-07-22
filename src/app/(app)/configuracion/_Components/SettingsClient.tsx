@@ -2,7 +2,7 @@
 
 import { useAuthActions } from "@convex-dev/auth/react";
 import { LogOut, Settings2, ShieldCheck } from "lucide-react";
-import { Card } from "@/components/ui";
+import { Button, Card } from "@/components/ui";
 import { IconBadge } from "@/components/Icons";
 import { AgendaSettingsCard } from "./AgendaSettingsCard";
 import { AppointmentTypesCard } from "./AppointmentTypesCard";
@@ -21,14 +21,15 @@ function PrivacyCard() {
         Los datos viven en tu proyecto Convex, protegidos con usuario y
         contraseña. Solo vos podés ver y editar tu agenda.
       </p>
-      <button
+      <Button
         type="button"
         onClick={() => void signOut()}
-        className="mt-4 inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-3.5 py-2 text-sm font-medium text-stone-500 shadow-sm transition hover:bg-stone-50 hover:text-stone-800"
+        className="mt-4 w-full sm:ml-auto sm:flex sm:w-auto sm:min-w-44"
+        variant="destructive"
       >
-        <LogOut className="h-4 w-4" />
+        <LogOut data-icon="inline-start" />
         Cerrar sesión
-      </button>
+      </Button>
     </Card>
   );
 }

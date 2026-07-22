@@ -4,7 +4,14 @@ import { convexQuery, useConvexMutation } from "@convex-dev/react-query";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
-import { useEffect, useId, useReducer, useRef, useState } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useId,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { Button, Modal } from "./ui";
 import {
   addDays,
@@ -249,15 +256,19 @@ export function AppointmentForm({
     duplicating,
   ]);
 
+  const notifyDirtyChange = useEffectEvent((dirty: boolean) => {
+    onDirtyChange?.(dirty);
+  });
+
   useEffect(() => {
     if (!configInitialized) return;
     if (baselineRef.current === null) {
       baselineRef.current = valueSignature;
-      onDirtyChange?.(false);
+      notifyDirtyChange(false);
       return;
     }
-    onDirtyChange?.(baselineRef.current !== valueSignature);
-  }, [configInitialized, onDirtyChange, valueSignature]);
+    notifyDirtyChange(baselineRef.current !== valueSignature);
+  }, [configInitialized, valueSignature]);
 
   const previewStart = date && startTime ? parseLocalDateTime(date, startTime) : 0;
   const previewEnd =

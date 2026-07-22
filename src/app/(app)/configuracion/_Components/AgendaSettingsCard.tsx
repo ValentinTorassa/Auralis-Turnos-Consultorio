@@ -5,6 +5,7 @@ import { useReducer } from "react";
 import { api } from "../../../../../convex/_generated/api";
 import { Doc } from "../../../../../convex/_generated/dataModel";
 import { Button, Card, Input, Label, Skeleton } from "@/components/ui";
+import { TimePicker } from "@/components/ui/time-picker";
 import { mergeFormState, readableError } from "@/lib/form-state";
 import { Clock } from "lucide-react";
 
@@ -61,27 +62,21 @@ function SettingsForm({ settings }: { settings: Doc<"settings"> }) {
 
   return (
     <form onSubmit={handleSave} className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <Label htmlFor="settings-workday-start">Inicio del día</Label>
-          <Input
+          <TimePicker
             id="settings-workday-start"
-            type="time"
             value={workDayStart}
-            onChange={(event) =>
-              updateDraft({ workDayStart: event.target.value })
-            }
+            onChange={(workDayStart) => updateDraft({ workDayStart })}
           />
         </div>
         <div>
           <Label htmlFor="settings-workday-end">Fin del día</Label>
-          <Input
+          <TimePicker
             id="settings-workday-end"
-            type="time"
             value={workDayEnd}
-            onChange={(event) =>
-              updateDraft({ workDayEnd: event.target.value })
-            }
+            onChange={(workDayEnd) => updateDraft({ workDayEnd })}
           />
         </div>
       </div>
@@ -101,7 +96,7 @@ function SettingsForm({ settings }: { settings: Doc<"settings"> }) {
           }
         />
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <Label htmlFor="settings-psychiatrist-slots">
             Slots psiquiatra / día
@@ -143,11 +138,15 @@ function SettingsForm({ settings }: { settings: Doc<"settings"> }) {
         no se modifican; si una nueva distribución se superpone, ese horario no
         se genera.
       </p>
-      <div className="flex items-center gap-3">
-        <Button type="submit">Guardar</Button>
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
         {saved ? (
-          <span className="text-sm text-teal-700">Guardado ✓</span>
+          <span className="text-center text-sm text-teal-700 sm:text-right">
+            Guardado ✓
+          </span>
         ) : null}
+        <Button type="submit" className="w-full sm:min-w-40 sm:w-auto">
+          Guardar cambios
+        </Button>
       </div>
       {error ? (
         <p role="alert" className="text-sm text-rose-700">

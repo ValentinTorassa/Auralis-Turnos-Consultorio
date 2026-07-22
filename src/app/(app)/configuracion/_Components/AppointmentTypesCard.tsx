@@ -5,6 +5,14 @@ import { useId, useReducer } from "react";
 import { api } from "../../../../../convex/_generated/api";
 import { Doc } from "../../../../../convex/_generated/dataModel";
 import { Button, Card, Input, Label } from "@/components/ui";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "@/components/ui/field";
 import { mergeFormState, readableError } from "@/lib/form-state";
 import { Check, Palette, Pencil, Trash2, X } from "lucide-react";
 
@@ -45,42 +53,48 @@ function TypeCapabilities({
 > & {
   onChange: (patch: Partial<TypeDraft>) => void;
 }) {
+  const fieldId = useId();
+
   return (
-    <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-stone-700">
-      <label className="flex items-center gap-2">
-        <input
-          type="checkbox"
+    <FieldSet>
+      <FieldLegend className="sr-only">Opciones del tipo de actividad</FieldLegend>
+      <FieldGroup className="flex-row flex-wrap gap-x-4 gap-y-2">
+        <Field orientation="horizontal" className="w-auto gap-2">
+          <Checkbox
+            id={`${fieldId}-patient`}
           checked={requiresPatient}
-          onChange={(event) =>
-            onChange({ requiresPatient: event.target.checked })
-          }
-          className="accent-teal-700"
-        />
-        Requiere paciente
-      </label>
-      <label className="flex items-center gap-2">
-        <input
-          type="checkbox"
+            onCheckedChange={(requiresPatient) =>
+              onChange({ requiresPatient })
+            }
+          />
+          <FieldLabel htmlFor={`${fieldId}-patient`} className="text-xs text-stone-700">
+            Requiere paciente
+          </FieldLabel>
+        </Field>
+        <Field orientation="horizontal" className="w-auto gap-2">
+          <Checkbox
+            id={`${fieldId}-payment`}
           checked={tracksPayment}
-          onChange={(event) =>
-            onChange({ tracksPayment: event.target.checked })
-          }
-          className="accent-teal-700"
-        />
-        Registra pago
-      </label>
-      <label className="flex items-center gap-2">
-        <input
-          type="checkbox"
+            onCheckedChange={(tracksPayment) => onChange({ tracksPayment })}
+          />
+          <FieldLabel htmlFor={`${fieldId}-payment`} className="text-xs text-stone-700">
+            Registra pago
+          </FieldLabel>
+        </Field>
+        <Field orientation="horizontal" className="w-auto gap-2">
+          <Checkbox
+            id={`${fieldId}-reminder`}
           checked={supportsReminder}
-          onChange={(event) =>
-            onChange({ supportsReminder: event.target.checked })
-          }
-          className="accent-teal-700"
-        />
-        Admite aviso
-      </label>
-    </div>
+            onCheckedChange={(supportsReminder) =>
+              onChange({ supportsReminder })
+            }
+          />
+          <FieldLabel htmlFor={`${fieldId}-reminder`} className="text-xs text-stone-700">
+            Admite aviso
+          </FieldLabel>
+        </Field>
+      </FieldGroup>
+    </FieldSet>
   );
 }
 
@@ -145,7 +159,7 @@ function TypeRow({ type }: { type: Doc<"appointmentTypes"> }) {
             <Input
               type="color"
               aria-label={`Color de ${type.name}`}
-              className="h-9 w-12 shrink-0 p-1"
+              className="h-9 w-12 shrink-0"
               value={color}
               onChange={(event) => updateDraft({ color: event.target.value })}
             />
@@ -182,22 +196,23 @@ function TypeRow({ type }: { type: Doc<"appointmentTypes"> }) {
                 }
               />
             </div>
-            <button
+            <Button
               type="button"
               onClick={() => void handleSave()}
-              className="rounded-lg p-2 text-teal-700 transition hover:bg-teal-50"
+              size="icon-sm"
               aria-label="Guardar"
             >
-              <Check className="h-4 w-4" />
-            </button>
-            <button
+              <Check />
+            </Button>
+            <Button
               type="button"
               onClick={() => updateDraft(draftFromType(type))}
-              className="rounded-lg p-2 text-stone-500 transition hover:bg-stone-100"
+              size="icon-sm"
+              variant="ghost"
               aria-label="Cancelar"
             >
-              <X className="h-4 w-4" />
-            </button>
+              <X />
+            </Button>
           </div>
         </div>
       ) : (
@@ -218,23 +233,25 @@ function TypeRow({ type }: { type: Doc<"appointmentTypes"> }) {
             {type.requiresPatient === false ? "Sin paciente" : "Paciente"} ·{" "}
             {type.defaultDurationMin ?? 50} min
           </span>
-          <button
+          <Button
             type="button"
             onClick={() => updateDraft({ editing: true })}
-            className="rounded-lg p-2 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
+            size="icon-sm"
+            variant="ghost"
             aria-label="Editar"
           >
-            <Pencil className="h-4 w-4" />
-          </button>
+            <Pencil />
+          </Button>
           {!type.isSystemType ? (
-            <button
+            <Button
               type="button"
               onClick={() => void handleDelete()}
-              className="rounded-lg p-2 text-stone-400 transition hover:bg-rose-50 hover:text-rose-600"
+              size="icon-sm"
+              variant="destructive"
               aria-label="Eliminar"
             >
-              <Trash2 className="h-4 w-4" />
-            </button>
+              <Trash2 />
+            </Button>
           ) : null}
         </div>
       )}
@@ -319,7 +336,7 @@ export function AppointmentTypesCard() {
           <Input
             type="color"
             aria-label="Color del nuevo tipo de actividad"
-            className="h-11 w-full p-1 sm:w-20"
+            className="h-11 w-full sm:w-20"
             value={color}
             onChange={(event) => updateDraft({ color: event.target.value })}
           />
@@ -343,10 +360,10 @@ export function AppointmentTypesCard() {
         />
         <Button
           type="submit"
-          variant="outline"
+          className="w-full sm:ml-auto sm:flex sm:w-auto sm:min-w-36"
           disabled={!name.trim() || defaultDurationMin < 5}
         >
-          Agregar
+          Agregar tipo
         </Button>
         {error ? (
           <p role="alert" className="text-sm text-rose-700">

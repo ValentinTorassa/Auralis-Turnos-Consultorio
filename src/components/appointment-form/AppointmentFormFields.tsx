@@ -12,6 +12,9 @@ import {
   WarningBox,
 } from "@/components/ui";
 import { DatePicker } from "@/components/ui/date-picker";
+import { TimePicker } from "@/components/ui/time-picker";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { timeToMinutes } from "@/lib/appointment-form";
 import { AppointmentState } from "./types";
 
@@ -224,23 +227,19 @@ function Schedule() {
         </div>
         <div>
           <Label htmlFor={ids.start}>Desde</Label>
-          <Input
+          <TimePicker
             id={ids.start}
-            type="time"
             value={startTime}
-            onChange={(event) => changeStart(event.target.value)}
+            onChange={changeStart}
             required
           />
         </div>
         <div>
           <Label htmlFor={ids.end}>Hasta</Label>
-          <Input
+          <TimePicker
             id={ids.end}
-            type="time"
             value={endTime}
-            onChange={(event) =>
-              update({ endEdited: true, endTime: event.target.value })
-            }
+            onChange={(endTime) => update({ endEdited: true, endTime })}
             required
             aria-invalid={errorControlId === ids.end}
             aria-describedby={
@@ -250,18 +249,19 @@ function Schedule() {
         </div>
       </div>
 
-      <label className="flex items-center gap-3 rounded-2xl border border-stone-200 px-3 py-2.5 transition hover:bg-stone-50">
-        <input
+      <Field
+        orientation="horizontal"
+        className="items-center rounded-2xl border border-stone-200 px-3 py-2.5 transition hover:bg-stone-50"
+      >
+        <Checkbox
           id={ids.overnight}
-          type="checkbox"
           checked={endsNextDay}
-          onChange={(event) => update({ endsNextDay: event.target.checked })}
-          className="h-5 w-5 rounded border-stone-300 accent-teal-700"
+          onCheckedChange={(endsNextDay) => update({ endsNextDay })}
         />
-        <span className="text-sm text-stone-700">
+        <FieldLabel htmlFor={ids.overnight} className="text-sm text-stone-700">
           Finaliza al día siguiente
-        </span>
-      </label>
+        </FieldLabel>
+      </Field>
       {invalidRange ? (
         <p role="alert" className="text-sm text-amber-700">
           El fin no puede ser anterior al inicio, salvo que finalice mañana.
@@ -379,18 +379,19 @@ function StatusAndReminder() {
       ) : null}
 
       {supportsReminder ? (
-        <label className="flex items-center gap-3 rounded-2xl border border-stone-200 px-3 py-3 transition hover:bg-stone-50">
-          <input
+        <Field
+          orientation="horizontal"
+          className="items-center rounded-2xl border border-stone-200 px-3 py-3 transition hover:bg-stone-50"
+        >
+          <Checkbox
             id={ids.reminder}
-            type="checkbox"
             checked={reminder}
-            onChange={(event) => update({ reminder: event.target.checked })}
-            className="h-5 w-5 rounded border-stone-300 accent-teal-700"
+            onCheckedChange={(reminder) => update({ reminder })}
           />
-          <span className="text-sm text-stone-700">
+          <FieldLabel htmlFor={ids.reminder} className="text-sm text-stone-700">
             Recordarme avisar al paciente (24 h antes)
-          </span>
-        </label>
+          </FieldLabel>
+        </Field>
       ) : null}
     </>
   );

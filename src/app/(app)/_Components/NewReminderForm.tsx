@@ -6,8 +6,9 @@ import { useReducer } from "react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { PatientPicker } from "@/components/PatientPicker";
-import { Button, Input, Label, Textarea } from "@/components/ui";
+import { Button, Label, Textarea } from "@/components/ui";
 import { DatePicker } from "@/components/ui/date-picker";
+import { TimePicker } from "@/components/ui/time-picker";
 import { mergeFormState, readableError } from "@/lib/form-state";
 import { parseLocalDateTime, todayKey } from "@/lib/utils";
 
@@ -77,7 +78,7 @@ export function NewReminderForm({ onDone }: { onDone: () => void }) {
           onChange={(patientId) => updateDraft({ patientId })}
         />
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <Label htmlFor="new-reminder-date">Fecha</Label>
           <DatePicker
@@ -89,11 +90,10 @@ export function NewReminderForm({ onDone }: { onDone: () => void }) {
         </div>
         <div>
           <Label htmlFor="new-reminder-time">Hora</Label>
-          <Input
+          <TimePicker
             id="new-reminder-time"
-            type="time"
             value={time}
-            onChange={(event) => updateDraft({ time: event.target.value })}
+            onChange={(time) => updateDraft({ time })}
             required
           />
         </div>

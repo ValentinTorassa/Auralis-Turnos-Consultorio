@@ -171,21 +171,22 @@ export function AgendaClient() {
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
           <DatePicker
             value={cursor}
             onChange={(nextDate) => navigate(nextDate)}
             aria-label="Ir a una fecha de la agenda"
-            className="w-44"
+            displayFormat="long"
+            className="w-full sm:w-56"
           />
-          <div className="flex rounded-xl bg-stone-100 p-1 ring-1 ring-stone-200/60">
+          <div className="flex w-full rounded-xl bg-stone-100 p-1 ring-1 ring-stone-200/60 sm:w-auto">
             {(["day", "week", "month"] as View[]).map((v) => (
               <button
                 key={v}
                 type="button"
                 onClick={() => navigate(cursor, v)}
                 className={cn(
-                  "min-h-11 rounded-lg px-3 py-2 text-sm font-medium capitalize transition",
+                  "min-h-11 flex-1 rounded-lg px-3 py-2 text-sm font-medium capitalize transition sm:flex-none",
                   view === v
                     ? "bg-white text-stone-900 shadow-sm"
                     : "text-stone-500 hover:text-stone-700",
@@ -195,7 +196,7 @@ export function AgendaClient() {
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex w-full items-center gap-1 sm:w-auto">
             <Button
               variant="outline"
               size="sm"
@@ -207,7 +208,7 @@ export function AgendaClient() {
             <Button
               variant="outline"
               size="sm"
-              className="h-11"
+              className="h-11 flex-1 sm:flex-none"
               onClick={() => navigate(today)}
             >
               Hoy
@@ -222,6 +223,7 @@ export function AgendaClient() {
             </Button>
           </div>
           <Button
+            className="w-full sm:min-w-32 sm:w-auto"
             onClick={() => {
               setDefaultTime(undefined);
               setOpenNew(true);
