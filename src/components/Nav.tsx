@@ -5,15 +5,12 @@ import { usePathname } from "next/navigation";
 import {
   Brain,
   CalendarRange,
-  Eye,
-  EyeOff,
   LayoutDashboard,
   Settings2,
   UsersRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LogoMark } from "./Icons";
-import { usePrivacyMode } from "./PrivacyContext";
 
 const links = [
   { href: "/", label: "Hoy", icon: LayoutDashboard },
@@ -25,12 +22,11 @@ const links = [
 
 export function Nav() {
   const pathname = usePathname();
-  const { privacyMode, setPrivacyMode } = usePrivacyMode();
 
   return (
     <>
       <header className="safe-top sticky top-0 z-40 border-b border-stone-200/70 bg-stone-50/85 backdrop-blur-md">
-        <div className="safe-inline mx-auto flex h-16 max-w-6xl items-center justify-between">
+        <div className="safe-inline mx-auto flex h-16 max-w-6xl items-center">
           <div className="flex items-center gap-3">
             <LogoMark size={40} className="shadow-md shadow-teal-900/10" />
             <div>
@@ -42,27 +38,6 @@ export function Nav() {
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setPrivacyMode((active) => !active)}
-            aria-pressed={privacyMode}
-            aria-label={
-              privacyMode
-                ? "Mostrar contenido privado"
-                : "Ocultar contenido privado"
-            }
-            title={privacyMode ? "Mostrar contenido" : "Ocultar contenido"}
-            className="inline-flex h-11 min-w-11 items-center justify-center gap-2 rounded-2xl px-3 text-stone-600 transition hover:bg-white hover:text-teal-800 hover:shadow-sm"
-          >
-            {privacyMode ? (
-              <Eye className="h-5 w-5" aria-hidden="true" />
-            ) : (
-              <EyeOff className="h-5 w-5" aria-hidden="true" />
-            )}
-            <span className="hidden text-xs font-semibold sm:inline">
-              Privacidad
-            </span>
-          </button>
         </div>
       </header>
 

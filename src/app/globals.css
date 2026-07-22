@@ -93,14 +93,6 @@ button {
   transform: translateY(0);
 }
 
-html.privacy-mode [data-private-content],
-html.privacy-mode [data-modal-root] {
-  pointer-events: none;
-  user-select: none;
-  filter: blur(18px);
-  opacity: 0.08;
-}
-
 /* ---- Motion ---- */
 @keyframes fade-in {
   from {

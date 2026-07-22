@@ -182,8 +182,6 @@ export function Modal({
   }
 
   const handleDocumentKeyDown = useEffectEvent((event: KeyboardEvent) => {
-    if (document.documentElement.dataset.privacyMode === "on") return;
-
     const dialog = dialogRef.current;
     if (!dialog) return;
 
@@ -244,8 +242,7 @@ export function Modal({
       .filter(
         (element): element is HTMLElement =>
           element instanceof HTMLElement &&
-          element !== modalRoot &&
-          !element.matches("[data-privacy-exempt]"),
+          element !== modalRoot,
       )
       .map((element) => ({
         element,
@@ -275,10 +272,7 @@ export function Modal({
         else element.setAttribute("aria-hidden", ariaHidden);
       });
 
-      if (
-        document.documentElement.dataset.privacyMode !== "on" &&
-        triggerRef.current?.isConnected
-      ) {
+      if (triggerRef.current?.isConnected) {
         triggerRef.current.focus();
       }
       triggerRef.current = null;

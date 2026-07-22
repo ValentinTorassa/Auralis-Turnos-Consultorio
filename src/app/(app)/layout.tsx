@@ -1,17 +1,19 @@
-import { PrivacyShell } from "@/components/PrivacyShell";
-
-const configuredIdleMinutes = Number(
-  process.env.NEXT_PUBLIC_PRIVACY_IDLE_MINUTES ?? 15,
-);
-const idleTimeoutMinutes =
-  Number.isFinite(configuredIdleMinutes) && configuredIdleMinutes > 0
-    ? configuredIdleMinutes
-    : 0;
+import { Nav } from "@/components/Nav";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <PrivacyShell idleTimeoutMinutes={idleTimeoutMinutes}>
-      {children}
-    </PrivacyShell>
+    <div className="min-h-screen pb-24 sm:pb-8">
+      <a href="#main-content" className="skip-link">
+        Saltar al contenido principal
+      </a>
+      <Nav />
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="safe-inline mx-auto max-w-6xl py-4 sm:py-6"
+      >
+        {children}
+      </main>
+    </div>
   );
 }
