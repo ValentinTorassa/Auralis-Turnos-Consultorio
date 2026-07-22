@@ -163,7 +163,7 @@ export function AgendaClient() {
             <h1 className="text-2xl font-semibold tracking-tight text-stone-900">
               Agenda
             </h1>
-            <p className="text-sm text-stone-500 capitalize">
+            <p className="text-sm text-stone-500 first-letter:uppercase">
               {view === "day" && formatDateLong(cursor)}
               {view === "week" &&
                 `Semana del ${formatDateLong(weekStart).replace(/ de \d{4}$/, "")}`}

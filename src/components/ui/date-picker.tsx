@@ -68,7 +68,7 @@ export function DatePicker({
         }
       >
         <CalendarDays data-icon="inline-start" className="text-teal-700" />
-        <span className="truncate capitalize">{label}</span>
+        <span className="truncate">{label}</span>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-auto p-0">
         <Calendar

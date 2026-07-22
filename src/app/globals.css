@@ -56,6 +56,16 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
+@media (min-width: 1024px) {
+  body {
+    background:
+      radial-gradient(ellipse 68% 42% at 12% -14%, #ccfbf18c, transparent 72%),
+      radial-gradient(ellipse 48% 34% at 92% -8%, #fef3c75c, transparent 74%),
+      var(--background);
+    background-attachment: fixed;
+  }
+}
+
 * {
   -webkit-tap-highlight-color: transparent;
 }

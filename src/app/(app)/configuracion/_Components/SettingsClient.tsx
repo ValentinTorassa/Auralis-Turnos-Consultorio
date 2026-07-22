@@ -35,7 +35,7 @@ function PrivacyCard() {
 
 export function SettingsClient() {
   return (
-    <div className="anim-page max-w-2xl space-y-5">
+    <div className="anim-page max-w-5xl space-y-5">
       <div className="flex items-start gap-3">
         <IconBadge tone="stone">
           <Settings2 className="h-5 w-5" />
@@ -50,10 +50,14 @@ export function SettingsClient() {
         </div>
       </div>
 
-      <AgendaSettingsCard />
-      <AppointmentTypesCard />
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(20rem,0.95fr)]">
+        <div className="space-y-5">
+          <AgendaSettingsCard />
+          <PrivacyCard />
+        </div>
+        <AppointmentTypesCard />
+      </div>
       <BackupSection />
-      <PrivacyCard />
     </div>
   );
 }

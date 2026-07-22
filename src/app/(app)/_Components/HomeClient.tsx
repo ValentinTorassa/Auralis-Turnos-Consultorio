@@ -128,7 +128,7 @@ export function HomeClient() {
             <p className="text-sm font-semibold text-teal-700">
               {greeting(now)}
             </p>
-            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight capitalize text-stone-900">
+            <h1 className="text-2xl font-semibold tracking-tight text-stone-900 first-letter:uppercase sm:text-3xl">
               {formatDateLong(date)}
             </h1>
             <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-stone-500">
