@@ -10,7 +10,10 @@
     "userInterfaceStyle": "light",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.valentorassa.auralis"
+      "bundleIdentifier": "com.valentorassa.auralis",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.valentorassa.auralis",
