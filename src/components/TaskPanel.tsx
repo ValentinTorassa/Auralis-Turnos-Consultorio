@@ -1,12 +1,12 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
+import { convexQuery, useConvexMutation } from "@convex-dev/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "../../convex/_generated/api";
 import { useState } from "react";
 import { Button, Card, Empty, Input } from "./ui";
 import { IconBadge } from "./Icons";
 import {
-  CalendarDays,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -14,7 +14,8 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
-import { addDays, cn, todayKey } from "@/lib/utils";
+import { addDays, cn } from "@/lib/utils";
+import { DatePicker } from "@/components/ui/date-picker";
 
 function shortLabel(date: string): string {
   return new Intl.DateTimeFormat("es-AR", {
@@ -26,26 +27,36 @@ function shortLabel(date: string): string {
 
 export function TaskPanel({
   date,
+  today,
   onDateChange,
 }: {
   date: string;
+  today?: string;
   onDateChange?: (date: string) => void;
 }) {
-  const tasks = useQuery(api.tasks.byDate, { date }) ?? [];
-  const create = useMutation(api.tasks.create);
-  const toggle = useMutation(api.tasks.toggle);
-  const remove = useMutation(api.tasks.remove);
+  const { data: tasks = [] } = useQuery(
+    convexQuery(api.tasks.byDate, { date }),
+  );
+  const create = useMutation({
+    mutationFn: useConvexMutation(api.tasks.create),
+  });
+  const toggle = useMutation({
+    mutationFn: useConvexMutation(api.tasks.toggle),
+  });
+  const remove = useMutation({
+    mutationFn: useConvexMutation(api.tasks.remove),
+  });
   const [title, setTitle] = useState("");
   const [adding, setAdding] = useState(false);
 
-  const isToday = date === todayKey();
+  const isToday = Boolean(today) && date === today;
 
   async function addTask(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) return;
     setAdding(true);
     try {
-      await create({ date, title });
+      await create.mutateAsync({ date, title });
       setTitle("");
     } finally {
       setAdding(false);
@@ -84,16 +95,12 @@ export function TaskPanel({
           >
             <ChevronLeft className="h-4.5 w-4.5" />
           </button>
-          <label className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl bg-white px-2 shadow-sm">
-            <CalendarDays className="h-4 w-4 shrink-0 text-violet-600" />
-            <span className="sr-only">Fecha de las tareas</span>
-            <input
-              type="date"
-              value={date}
-              onChange={(event) => onDateChange(event.target.value)}
-              className="h-9 min-w-0 flex-1 bg-transparent text-sm font-semibold text-stone-800 outline-none"
-            />
-          </label>
+          <DatePicker
+            value={date}
+            onChange={onDateChange}
+            aria-label="Fecha de las tareas"
+            className="h-9 min-w-0 flex-1 rounded-xl px-2 text-sm"
+          />
           <button
             type="button"
             onClick={() => onDateChange(addDays(date, 1))}
@@ -102,10 +109,10 @@ export function TaskPanel({
           >
             <ChevronRight className="h-4.5 w-4.5" />
           </button>
-          {!isToday && (
+          {today && !isToday && (
             <button
               type="button"
-              onClick={() => onDateChange(todayKey())}
+              onClick={() => onDateChange(today)}
               className="shrink-0 rounded-xl bg-white px-2.5 py-1.5 text-xs font-semibold text-teal-700 shadow-sm ring-1 ring-teal-100 transition hover:bg-teal-50"
             >
               Volver a hoy
@@ -159,7 +166,7 @@ export function TaskPanel({
             >
               <button
                 type="button"
-                onClick={() => void toggle({ id: t._id })}
+                onClick={() => void toggle.mutateAsync({ id: t._id })}
                 className={cn(
                   "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border transition",
                   t.done
@@ -180,7 +187,7 @@ export function TaskPanel({
               </span>
               <button
                 type="button"
-                onClick={() => void remove({ id: t._id })}
+                onClick={() => void remove.mutateAsync({ id: t._id })}
                 className="rounded-xl p-2 text-stone-400 hover:bg-rose-50 hover:text-rose-600"
                 aria-label="Eliminar"
               >

@@ -1,6 +1,7 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
+import { convexQuery, useConvexMutation } from "@convex-dev/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { useId, useState } from "react";
@@ -33,17 +34,22 @@ export function PatientPicker({
   const [newPhone, setNewPhone] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const results = useQuery(api.patients.search, { q });
-  const create = useMutation(api.patients.create);
-  const duplicates = useQuery(
-    api.patients.duplicateCandidates,
-    creating && newName.trim()
-      ? { fullName: newName, phone: newPhone || undefined }
-      : "skip",
+  const { data: results = [] } = useQuery(
+    convexQuery(api.patients.search, { q }),
   );
-  const selected = useQuery(
-    api.patients.get,
-    value ? { id: value } : "skip",
+  const create = useMutation({
+    mutationFn: useConvexMutation(api.patients.create),
+  });
+  const { data: duplicates } = useQuery(
+    convexQuery(
+      api.patients.duplicateCandidates,
+      creating && newName.trim()
+        ? { fullName: newName, phone: newPhone || undefined }
+        : "skip",
+    ),
+  );
+  const { data: selected } = useQuery(
+    convexQuery(api.patients.get, value ? { id: value } : "skip"),
   );
 
   return (
@@ -159,7 +165,7 @@ export function PatientPicker({
                     setSaving(true);
                     setError("");
                     try {
-                      const id = await create({
+                      const id = await create.mutateAsync({
                         fullName: newName,
                         phone: newPhone || undefined,
                         careType: "Consultorio",

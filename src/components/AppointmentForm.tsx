@@ -1,6 +1,7 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
+import { convexQuery, useConvexMutation } from "@convex-dev/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { useEffect, useId, useRef, useState } from "react";
@@ -21,6 +22,7 @@ import {
   parseLocalDateTime,
   todayKey,
 } from "@/lib/utils";
+import { DatePicker } from "@/components/ui/date-picker";
 
 type Appt = {
   _id: Id<"appointments">;
@@ -36,6 +38,29 @@ type Appt = {
   status: "confirmed" | "cancelled" | "no_show" | "completed";
   reminderEnabled: boolean;
 };
+
+type AppointmentDraft = {
+  patientId?: Id<"patients">;
+  typeId: string;
+  title: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  endsNextDay: boolean;
+  notes: string;
+  paymentStatus: Appt["paymentStatus"];
+  paymentMethod: string;
+  paymentNotes: string;
+  status: Appt["status"];
+  reminder: boolean;
+};
+
+function appointmentDraftReducer(
+  state: AppointmentDraft,
+  patch: Partial<AppointmentDraft>,
+): AppointmentDraft {
+  return { ...state, ...patch };
+}
 
 export type AppointmentFormResult = {
   id: Id<"appointments">;
@@ -143,15 +168,21 @@ export function AppointmentForm({
   onDirtyChange,
   onCancel,
 }: AppointmentFormProps) {
-  const types = useQuery(api.types.list);
-  const settings = useQuery(api.settings.get);
-  const create = useMutation(api.appointments.create);
-  const update = useMutation(api.appointments.update);
-  const remove = useMutation(api.appointments.remove);
+  const { data: types } = useQuery(convexQuery(api.types.list, {}));
+  const { data: settings } = useQuery(convexQuery(api.settings.get, {}));
+  const create = useMutation({
+    mutationFn: useConvexMutation(api.appointments.create),
+  });
+  const update = useMutation({
+    mutationFn: useConvexMutation(api.appointments.update),
+  });
+  const remove = useMutation({
+    mutationFn: useConvexMutation(api.appointments.remove),
+  });
 
   const startParts = initial
     ? toDateParts(initial.startTime)
-    : { date: defaultDate ?? todayKey(), time: defaultTime ?? "09:00" };
+    : { date: defaultDate ?? "", time: defaultTime ?? "09:00" };
   const endParts = initial ? toDateParts(initial.endTime) : null;
 
   const [patientId, setPatientId] = useState<Id<"patients"> | undefined>(
@@ -264,21 +295,25 @@ export function AppointmentForm({
     date && endTime
       ? parseLocalDateTime(date, endTime) + (endsNextDay ? 86400000 : 0)
       : 0;
-  const conflictRows = useQuery(
-    api.appointments.conflicts,
-    previewEnd > previewStart
-      ? {
-          startTime: previewStart,
-          endTime: previewEnd,
-          recurrenceCount: editing ? 1 : recurrenceCount,
-          excludeId: editing ? initial?._id : undefined,
-        }
-      : "skip",
+  const { data: conflictRows } = useQuery(
+    convexQuery(
+      api.appointments.conflicts,
+      previewEnd > previewStart
+        ? {
+            startTime: previewStart,
+            endTime: previewEnd,
+            recurrenceCount: editing ? 1 : recurrenceCount,
+            excludeId: editing ? initial?._id : undefined,
+          }
+        : "skip",
+    ),
   );
 
-  const warnings = useQuery(
-    api.patients.warnings,
-    patientId ? { patientId } : "skip",
+  const { data: warnings } = useQuery(
+    convexQuery(
+      api.patients.warnings,
+      patientId ? { patientId } : "skip",
+    ),
   );
 
   const canSave = Boolean(
@@ -373,7 +408,7 @@ export function AppointmentForm({
       const submittedReminder = supportsReminder ? reminder : false;
       let id: Id<"appointments">;
       if (editing && initial) {
-        id = await update({
+        id = await update.mutateAsync({
           id: initial._id,
           patientId: submittedPatientId ?? null,
           typeId: effectiveTypeId as Id<"appointmentTypes">,
@@ -389,7 +424,7 @@ export function AppointmentForm({
           allowConflict,
         });
       } else {
-        id = await create({
+        id = await create.mutateAsync({
           patientId: submittedPatientId,
           typeId: effectiveTypeId as Id<"appointmentTypes">,
           title: title || undefined,
@@ -524,11 +559,10 @@ export function AppointmentForm({
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div className="col-span-2 sm:col-span-1">
           <Label htmlFor={dateControlId}>Fecha</Label>
-          <Input
+          <DatePicker
             id={dateControlId}
-            type="date"
             value={date}
-            onChange={(e) => setDate(e.target.value)}
+            onChange={setDate}
             required
           />
         </div>
@@ -754,7 +788,7 @@ export function AppointmentForm({
             variant="danger"
             onClick={async () => {
               if (!confirm("¿Eliminar este turno?")) return;
-              await remove({ id: initial._id });
+              await remove.mutateAsync({ id: initial._id });
               onDirtyChange?.(false);
               onDone({
                 id: initial._id,
