@@ -1,19 +1,21 @@
 "use client";
 
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
-import { ConvexReactClient } from "convex/react";
-import { ReactNode, useMemo } from "react";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { ReactNode, useSyncExternalStore } from "react";
+import { getConvexQueryClient, getQueryClient } from "@/lib/query-client";
+
+const emptySubscribe = () => () => {};
 
 export function ConvexClientProvider({ children }: { children: ReactNode }) {
-  const client = useMemo(() => {
-    const url = process.env.NEXT_PUBLIC_CONVEX_URL;
-    if (!url) {
-      return null;
-    }
-    return new ConvexReactClient(url);
-  }, []);
+  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
+  const isHydrated = useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false,
+  );
 
-  if (!client) {
+  if (!url) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-50 p-6">
         <div className="max-w-md rounded-2xl border border-stone-200 bg-white p-8 shadow-sm">
@@ -25,7 +27,7 @@ export function ConvexClientProvider({ children }: { children: ReactNode }) {
             En la carpeta del proyecto ejecutá:
           </p>
           <pre className="bg-stone-900 text-stone-100 text-xs p-4 rounded-xl overflow-x-auto mb-4">
-{`npx convex dev`}
+{`bunx convex dev`}
           </pre>
           <p className="text-stone-500 text-sm">
             Eso crea el proyecto, genera <code>.env.local</code> y deja la app lista.
@@ -35,5 +37,20 @@ export function ConvexClientProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  return <ConvexAuthProvider client={client}>{children}</ConvexAuthProvider>;
+  if (!isHydrated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50">
+        <p className="text-sm text-stone-500">Cargando...</p>
+      </div>
+    );
+  }
+
+  const queryClient = getQueryClient(url);
+  const convexClient = getConvexQueryClient(queryClient).convexClient;
+
+  return (
+    <ConvexAuthProvider client={convexClient}>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </ConvexAuthProvider>
+  );
 }

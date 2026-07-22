@@ -7,11 +7,15 @@ import { AuthGate } from "@/components/AuthGate";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+  display: "swap",
+  preload: true
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  preload: true,
+  display: "swap"
 });
 
 export const metadata: Metadata = {
@@ -48,7 +52,9 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-stone-50 text-stone-900">
         <ConvexClientProvider>
-          <AuthGate>{children}</AuthGate>
+          <AuthGate>{
+            children}
+          </AuthGate>
         </ConvexClientProvider>
       </body>
     </html>

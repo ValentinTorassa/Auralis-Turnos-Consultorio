@@ -16,6 +16,11 @@ const contentSecurityPolicy = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  cacheComponents: true,
+  reactCompiler: true,
+  experimental: {
+    typedEnv: true,
+  },
   async headers() {
     return [
       {
