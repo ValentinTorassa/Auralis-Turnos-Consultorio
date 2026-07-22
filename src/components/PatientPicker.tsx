@@ -4,8 +4,18 @@ import { convexQuery, useConvexMutation } from "@convex-dev/react-query";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
-import { useId, useState } from "react";
+import { useId, useReducer } from "react";
 import { Button, Input, Label } from "./ui";
+import { debounce, useQueryState } from "nuqs";
+import { patientPickerSearchParser } from "@/lib/search-params";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
+import { mergeFormState, readableError } from "@/lib/form-state";
+
+type PickerDraft = {
+  creating: boolean;
+  newName: string;
+  newPhone: string;
+};
 
 export function PatientPicker({
   value,
@@ -28,14 +38,26 @@ export function PatientPicker({
   const newNameId = `${groupId}-new-name`;
   const newPhoneId = `${groupId}-new-phone`;
   const errorId = `${groupId}-error`;
-  const [q, setQ] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newPhone, setNewPhone] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [q, setQ] = useQueryState(
+    "patient",
+    patientPickerSearchParser.withOptions({
+      history: "replace",
+      shallow: true,
+      limitUrlUpdates: debounce(250),
+    }),
+  );
+  const debouncedQuery = useDebouncedValue(q.trim(), 250);
+  const [draft, updateDraft] = useReducer(mergeFormState<PickerDraft>, {
+    creating: false,
+    newName: "",
+    newPhone: "",
+  });
+  const { creating, newName, newPhone } = draft;
   const { data: results = [] } = useQuery(
-    convexQuery(api.patients.search, { q }),
+    convexQuery(
+      api.patients.search,
+      debouncedQuery ? { q: debouncedQuery } : "skip",
+    ),
   );
   const create = useMutation({
     mutationFn: useConvexMutation(api.patients.create),
@@ -68,7 +90,10 @@ export function PatientPicker({
           <button
             type="button"
             className="text-sm text-teal-700 underline"
-            onClick={() => onChange(undefined)}
+            onClick={() => {
+              onChange(undefined);
+              void setQ(null);
+            }}
           >
             Cambiar
           </button>
@@ -83,8 +108,8 @@ export function PatientPicker({
             placeholder="Buscar por nombre o teléfono..."
             value={q}
             onChange={(e) => {
-              setQ(e.target.value);
-              setCreating(false);
+              void setQ(e.target.value || null);
+              updateDraft({ creating: false });
             }}
             autoComplete="off"
           />
@@ -100,7 +125,7 @@ export function PatientPicker({
                   className="block w-full px-3 py-2.5 text-left text-sm hover:bg-stone-50"
                   onClick={() => {
                     onChange(p._id, p.fullName);
-                    setQ("");
+                    void setQ(null);
                   }}
                 >
                   <span className="font-medium text-stone-900">{p.fullName}</span>
@@ -117,8 +142,7 @@ export function PatientPicker({
               variant="ghost"
               size="sm"
               onClick={() => {
-                setNewName(q.trim());
-                setCreating(true);
+                updateDraft({ newName: q.trim(), creating: true });
               }}
             >
               Crear paciente “{q.trim()}”
@@ -131,9 +155,9 @@ export function PatientPicker({
                 <Input
                   id={newNameId}
                   value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  aria-describedby={error ? errorId : undefined}
-                  aria-invalid={Boolean(error)}
+                  onChange={(e) => updateDraft({ newName: e.target.value })}
+                  aria-describedby={create.error ? errorId : undefined}
+                  aria-invalid={Boolean(create.error)}
                 />
               </div>
               <div>
@@ -141,7 +165,7 @@ export function PatientPicker({
                 <Input
                   id={newPhoneId}
                   value={newPhone}
-                  onChange={(e) => setNewPhone(e.target.value)}
+                  onChange={(e) => updateDraft({ newPhone: e.target.value })}
                   inputMode="tel"
                 />
               </div>
@@ -151,19 +175,18 @@ export function PatientPicker({
                   Elegilo arriba si es la misma persona.
                 </p>
               )}
-              {error && (
+              {create.error && (
                 <p id={errorId} role="alert" className="text-sm text-rose-700">
-                  {error}
+                  {readableError(create.error, "No se pudo crear el paciente.")}
                 </p>
               )}
               <div className="flex gap-2">
                 <Button
                   type="button"
                   size="sm"
-                  disabled={saving || !newName.trim()}
+                  disabled={create.isPending || !newName.trim()}
                   onClick={async () => {
-                    setSaving(true);
-                    setError("");
+                    create.reset();
                     try {
                       const id = await create.mutateAsync({
                         fullName: newName,
@@ -171,18 +194,21 @@ export function PatientPicker({
                         careType: "Consultorio",
                       });
                       onChange(id, newName.trim());
-                      setQ("");
-                      setCreating(false);
-                    } catch (err) {
-                      setError(err instanceof Error ? err.message : "No se pudo crear");
-                    } finally {
-                      setSaving(false);
+                      void setQ(null);
+                      updateDraft({ creating: false, newName: "", newPhone: "" });
+                    } catch {
+                      // TanStack conserva el error para mostrarlo en el formulario.
                     }
                   }}
                 >
-                  {saving ? "Creando..." : "Crear y seleccionar"}
+                  {create.isPending ? "Creando..." : "Crear y seleccionar"}
                 </Button>
-                <Button type="button" variant="ghost" size="sm" onClick={() => setCreating(false)}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => updateDraft({ creating: false })}
+                >
                   Cancelar
                 </Button>
               </div>

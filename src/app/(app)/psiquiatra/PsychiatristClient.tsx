@@ -1,7 +1,8 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
-import { useState } from "react";
+import { convexQuery, useConvexMutation } from "@convex-dev/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useReducer } from "react";
 import {
   Ban,
   Brain,
@@ -19,6 +20,16 @@ import { IconBadge } from "@/components/Icons";
 import { PatientPicker } from "@/components/PatientPicker";
 import { Button, Card, Empty, Label, Modal } from "@/components/ui";
 import { formatDateTime } from "@/lib/utils";
+import { mergeFormState } from "@/lib/form-state";
+
+type PsychiatristState = {
+  actionId: Id<"psychiatristSlots"> | null;
+  assignId: Id<"psychiatristSlots"> | null;
+  patientId?: Id<"patients">;
+  editId: Id<"appointments"> | null;
+  message: string;
+  error: string;
+};
 
 function errorMessage(error: unknown) {
   const message =
@@ -27,22 +38,47 @@ function errorMessage(error: unknown) {
 }
 
 export function PsychiatristClient() {
-  const slots = useQuery(api.psychiatrist.listUpcoming) ?? [];
-  const types = useQuery(api.types.list);
-  const ensure = useMutation(api.psychiatrist.ensureMonths);
-  const assign = useMutation(api.psychiatrist.assignPatient);
-  const reassign = useMutation(api.psychiatrist.reassignPatient);
-  const release = useMutation(api.psychiatrist.release);
-  const block = useMutation(api.psychiatrist.block);
-  const unblock = useMutation(api.psychiatrist.unblock);
+  const { data: slots = [] } = useQuery(
+    convexQuery(api.psychiatrist.listUpcoming, {}),
+  );
+  const { data: types } = useQuery(convexQuery(api.types.list, {}));
+  const ensure = useMutation({
+    mutationFn: useConvexMutation(api.psychiatrist.ensureMonths),
+  });
+  const assign = useMutation({
+    mutationFn: useConvexMutation(api.psychiatrist.assignPatient),
+  });
+  const reassign = useMutation({
+    mutationFn: useConvexMutation(api.psychiatrist.reassignPatient),
+  });
+  const release = useMutation({
+    mutationFn: useConvexMutation(api.psychiatrist.release),
+  });
+  const block = useMutation({
+    mutationFn: useConvexMutation(api.psychiatrist.block),
+  });
+  const unblock = useMutation({
+    mutationFn: useConvexMutation(api.psychiatrist.unblock),
+  });
   const psychiatristType = types?.find((type) => type.isPsychiatrist);
-  const [busy, setBusy] = useState(false);
-  const [actionId, setActionId] = useState<Id<"psychiatristSlots"> | null>(null);
-  const [assignId, setAssignId] = useState<Id<"psychiatristSlots"> | null>(null);
-  const [patientId, setPatientId] = useState<Id<"patients"> | undefined>();
-  const [editId, setEditId] = useState<Id<"appointments"> | null>(null);
-  const [msg, setMsg] = useState("");
-  const [error, setError] = useState("");
+  const [state, updateState] = useReducer(mergeFormState<PsychiatristState>, {
+    actionId: null,
+    assignId: null,
+    patientId: undefined,
+    editId: null,
+    message: "",
+    error: "",
+  });
+  const { actionId, assignId, patientId, editId, message: msg, error } = state;
+  const busy = ensure.isPending;
+  const setActionId = (actionId: Id<"psychiatristSlots"> | null) =>
+    updateState({ actionId });
+  const setAssignId = (assignId: Id<"psychiatristSlots"> | null) =>
+    updateState({ assignId });
+  const setPatientId = (patientId?: Id<"patients">) => updateState({ patientId });
+  const setEditId = (editId: Id<"appointments"> | null) => updateState({ editId });
+  const setMsg = (message: string) => updateState({ message });
+  const setError = (error: string) => updateState({ error });
 
   const assignSlot = slots.find((slot) => slot._id === assignId);
   const editAppointment = slots.find(
@@ -50,11 +86,10 @@ export function PsychiatristClient() {
   )?.appointment;
 
   async function generate() {
-    setBusy(true);
     setMsg("");
     setError("");
     try {
-      const result = await ensure({ monthsAhead: 6 });
+      const result = await ensure.mutateAsync({ monthsAhead: 6 });
       setMsg(
         result.created || result.updated || result.removed
           ? `Horarios reconciliados: ${result.created} creados, ${result.updated} actualizados y ${result.removed} retirados.`
@@ -64,8 +99,6 @@ export function PsychiatristClient() {
       );
     } catch (caught) {
       setError(errorMessage(caught));
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -75,13 +108,13 @@ export function PsychiatristClient() {
     setError("");
     try {
       if (assignSlot.state === "assigned") {
-        await reassign({ slotId: assignSlot._id, patientId });
+        await reassign.mutateAsync({ slotId: assignSlot._id, patientId });
         setMsg("Paciente cambiado sin alterar el pago ni el recordatorio del turno.");
       } else {
         if (!psychiatristType) {
           throw new Error("No existe un tipo de Psiquiatría configurado");
         }
-        await assign({
+        await assign.mutateAsync({
           slotId: assignSlot._id,
           patientId,
           typeId: psychiatristType._id,
@@ -110,9 +143,9 @@ export function PsychiatristClient() {
     setActionId(slotId);
     setError("");
     try {
-      if (action === "release") await release({ slotId });
-      if (action === "block") await block({ slotId });
-      if (action === "unblock") await unblock({ slotId });
+      if (action === "release") await release.mutateAsync({ slotId });
+      if (action === "block") await block.mutateAsync({ slotId });
+      if (action === "unblock") await unblock.mutateAsync({ slotId });
       setMsg(
         action === "release"
           ? "Horario liberado y turno retirado de la agenda."

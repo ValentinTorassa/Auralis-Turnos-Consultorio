@@ -1,6 +1,7 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
+import { convexQuery, useConvexMutation } from "@convex-dev/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "../../../../convex/_generated/api";
 import { DayTimeline } from "@/components/DayTimeline";
 import {
@@ -33,24 +34,57 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { IconBadge } from "@/components/Icons";
-import { useEffect, useState } from "react";
+import { useEffect, useReducer } from "react";
 import { Id } from "../../../../convex/_generated/dataModel";
+import { useQueryStates } from "nuqs";
+import { agendaSearchParams } from "@/lib/search-params";
+import { DatePicker } from "@/components/ui/date-picker";
+import { mergeFormState } from "@/lib/form-state";
+
+type AgendaUiState = {
+  openNew: boolean;
+  defaultTime?: string;
+  editId: Id<"appointments"> | null;
+  highlightedId: Id<"appointments"> | null;
+  notice: AppointmentFormResult | null;
+};
 
 type View = "day" | "week" | "month";
 
 export function AgendaClient() {
-  const [view, setView] = useState<View>("day");
-  const [cursor, setCursor] = useState(todayKey());
-  const [openNew, setOpenNew] = useState(false);
-  const [defaultTime, setDefaultTime] = useState<string | undefined>();
-  const [editId, setEditId] = useState<Id<"appointments"> | null>(null);
-  const [highlightedId, setHighlightedId] = useState<Id<"appointments"> | null>(
-    null,
-  );
-  const [notice, setNotice] = useState<AppointmentFormResult | null>(null);
-  const restoreAppointment = useMutation(api.appointments.restore);
+  const today = todayKey();
+  const [{ view, date }, setNavigation] = useQueryStates(agendaSearchParams, {
+    history: "push",
+    shallow: true,
+    scroll: false,
+  });
+  const cursor = date || today;
+  const [ui, updateUi] = useReducer(mergeFormState<AgendaUiState>, {
+    openNew: false,
+    defaultTime: undefined,
+    editId: null,
+    highlightedId: null,
+    notice: null,
+  });
+  const { openNew, defaultTime, editId, highlightedId, notice } = ui;
+  const setOpenNew = (openNew: boolean) => updateUi({ openNew });
+  const setDefaultTime = (defaultTime?: string) => updateUi({ defaultTime });
+  const setEditId = (editId: Id<"appointments"> | null) => updateUi({ editId });
+  const setHighlightedId = (highlightedId: Id<"appointments"> | null) =>
+    updateUi({ highlightedId });
+  const setNotice = (notice: AppointmentFormResult | null) => updateUi({ notice });
+  const restoreAppointment = useMutation({
+    mutationFn: useConvexMutation(api.appointments.restore),
+  });
 
-  const settings = useQuery(api.settings.get);
+  function navigate(nextDate: string, nextView: View = view) {
+    void setNavigation({
+      date: nextDate === today ? null : nextDate,
+      view: nextView,
+    });
+  }
+
+  const { data: settings } = useQuery(convexQuery(api.settings.get, {}));
   const workStart = settings?.workDayStart ?? "08:00";
   const workEnd = settings?.workDayEnd ?? "20:00";
 
@@ -64,11 +98,12 @@ export function AgendaClient() {
     view,
   );
 
-  const appointments =
-    useQuery(api.appointments.byRange, {
+  const { data: appointments = [] } = useQuery(
+    convexQuery(api.appointments.byRange, {
       startMs: rangeStart,
       endMs: rangeEnd,
-    }) ?? [];
+    }),
+  );
 
   const dayAppointments = appointments
     .filter((appointment) => eventOverlapsDay(appointment, cursor))
@@ -94,16 +129,15 @@ export function AgendaClient() {
       return;
     }
     if (!result.created) return;
-    setCursor(result.date);
-    setView("day");
+    navigate(result.date, "day");
     setHighlightedId(result.id);
     setNotice(result);
   }
 
   function shift(dir: -1 | 1) {
-    if (view === "day") setCursor(addDays(cursor, dir));
-    else if (view === "week") setCursor(addDays(cursor, dir * 7));
-    else setCursor(addMonths(cursor, dir));
+    if (view === "day") navigate(addDays(cursor, dir));
+    else if (view === "week") navigate(addDays(cursor, dir * 7));
+    else navigate(addMonths(cursor, dir));
   }
 
   // Month grid
@@ -138,12 +172,18 @@ export function AgendaClient() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <DatePicker
+            value={cursor}
+            onChange={(nextDate) => navigate(nextDate)}
+            aria-label="Ir a una fecha de la agenda"
+            className="w-44"
+          />
           <div className="flex rounded-xl bg-stone-100 p-1 ring-1 ring-stone-200/60">
             {(["day", "week", "month"] as View[]).map((v) => (
               <button
                 key={v}
                 type="button"
-                onClick={() => setView(v)}
+                onClick={() => navigate(cursor, v)}
                 className={cn(
                   "min-h-11 rounded-lg px-3 py-2 text-sm font-medium capitalize transition",
                   view === v
@@ -168,7 +208,7 @@ export function AgendaClient() {
               variant="outline"
               size="sm"
               className="h-11"
-              onClick={() => setCursor(todayKey())}
+              onClick={() => navigate(today)}
             >
               Hoy
             </Button>
@@ -206,7 +246,7 @@ export function AgendaClient() {
                 size="sm"
                 variant="outline"
                 onClick={async () => {
-                  await restoreAppointment({ id: notice.id });
+                  await restoreAppointment.mutateAsync({ id: notice.id });
                   setNotice(null);
                 }}
               >
@@ -235,7 +275,7 @@ export function AgendaClient() {
               date={cursor}
               workStart={workStart}
               workEnd={workEnd}
-              isToday={cursor === todayKey()}
+              isToday={cursor === today}
               highlightedId={highlightedId}
               onSelect={(id) => setEditId(id as Id<"appointments">)}
               onSlotClick={(hour, minute = 0) => {
@@ -247,7 +287,7 @@ export function AgendaClient() {
             />
           </div>
           <div className="lg:sticky lg:top-36">
-            <TaskPanel date={cursor} onDateChange={setCursor} />
+            <TaskPanel date={cursor} onDateChange={(date) => navigate(date)} />
           </div>
         </div>
       )}
@@ -258,7 +298,7 @@ export function AgendaClient() {
             const dayAppts = appointments
               .filter((appointment) => eventOverlapsDay(appointment, d))
               .sort((a, b) => a.startTime - b.startTime);
-            const isToday = d === todayKey();
+            const isToday = d === today;
             return (
               <Card
                 key={d}
@@ -271,8 +311,7 @@ export function AgendaClient() {
                   type="button"
                   className="mb-2 min-h-11 w-full rounded-lg text-left"
                   onClick={() => {
-                    setCursor(d);
-                    setView("day");
+                    navigate(d, "day");
                   }}
                 >
                   <p
@@ -334,14 +373,13 @@ export function AgendaClient() {
               const dayAppts = appointments.filter((appointment) =>
                 eventOverlapsDay(appointment, d),
               );
-              const isToday = d === todayKey();
+              const isToday = d === today;
               return (
                 <button
                   key={d}
                   type="button"
                   onClick={() => {
-                    setCursor(d);
-                    setView("day");
+                    navigate(d, "day");
                   }}
                   className={cn(
                     "min-h-12 rounded-lg border p-1 text-left transition hover:border-teal-300 hover:shadow-sm sm:min-h-20 sm:rounded-xl sm:p-2",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuthActions } from "@convex-dev/auth/react";
-import { useState } from "react";
+import { useReducer, useTransition } from "react";
 import { Button, Card, Input, Label } from "@/components/ui";
 import { LogoMark } from "@/components/Icons";
 import {
@@ -14,30 +14,34 @@ import {
   Mail,
   Sparkles,
 } from "lucide-react";
+import { mergeFormState } from "@/lib/form-state";
+
+type LoginState = { error: string; showPassword: boolean };
 
 export function LoginFormClient() {
   const { signIn } = useAuthActions();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [showPass, setShowPass] = useState(false);
+  const [state, updateState] = useReducer(mergeFormState<LoginState>, {
+    error: "",
+    showPassword: false,
+  });
+  const [loading, startTransition] = useTransition();
+  const { error, showPassword } = state;
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setLoading(true);
-    setError("");
-    try {
-      const formData = new FormData();
-      formData.set("email", email.trim());
-      formData.set("password", password);
-      formData.set("flow", "signIn");
-      await signIn("password", formData);
-    } catch {
-      setError("No se pudo iniciar sesión. Revisá email y contraseña.");
-    } finally {
-      setLoading(false);
-    }
+    const formData = new FormData(e.currentTarget);
+    formData.set("email", String(formData.get("email") ?? "").trim());
+    formData.set("flow", "signIn");
+    updateState({ error: "" });
+    startTransition(async () => {
+      try {
+        await signIn("password", formData);
+      } catch {
+        updateState({
+          error: "No se pudo iniciar sesión. Revisá email y contraseña.",
+        });
+      }
+    });
   }
 
   return (
@@ -69,10 +73,9 @@ export function LoginFormClient() {
                 <Mail className="pointer-events-none absolute left-3 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-stone-400" />
                 <Input
                   id="login-email"
+                  name="email"
                   className="pl-10"
                   type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
                   placeholder="tu@email.com"
                   required
                   autoComplete="email"
@@ -87,10 +90,9 @@ export function LoginFormClient() {
                 <Lock className="pointer-events-none absolute left-3 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-stone-400" />
                 <Input
                   id="login-password"
+                  name="password"
                   className="pl-10 pr-11"
-                  type={showPass ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  type={showPassword ? "text" : "password"}
                   placeholder="Mínimo 8 caracteres"
                   required
                   minLength={8}
@@ -100,11 +102,13 @@ export function LoginFormClient() {
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPass((v) => !v)}
+                  onClick={() =>
+                    updateState({ showPassword: !showPassword })
+                  }
                   className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
-                  aria-label={showPass ? "Ocultar" : "Mostrar"}
+                  aria-label={showPassword ? "Ocultar" : "Mostrar"}
                 >
-                  {showPass ? (
+                  {showPassword ? (
                     <EyeOff className="h-4 w-4" />
                   ) : (
                     <Eye className="h-4 w-4" />

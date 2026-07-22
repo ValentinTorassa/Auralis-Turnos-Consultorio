@@ -4,7 +4,7 @@ import { convexQuery, useConvexMutation } from "@convex-dev/react-query";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useReducer, useRef, useState } from "react";
 import {
   Button,
   Input,
@@ -22,6 +22,7 @@ import {
   parseLocalDateTime,
 } from "@/lib/utils";
 import { DatePicker } from "@/components/ui/date-picker";
+import { mergeFormState, readableError } from "@/lib/form-state";
 
 type Appt = {
   _id: Id<"appointments">;
@@ -36,6 +37,29 @@ type Appt = {
   paymentNotes?: string;
   status: "confirmed" | "cancelled" | "no_show" | "completed";
   reminderEnabled: boolean;
+};
+
+type AppointmentState = {
+  patientId?: Id<"patients">;
+  typeId: string;
+  title: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  endsNextDay: boolean;
+  notes: string;
+  paymentStatus: Appt["paymentStatus"];
+  paymentMethod: string;
+  paymentNotes: string;
+  status: Appt["status"];
+  reminder: boolean;
+  recurrenceCount: 1 | 4 | 8 | 12;
+  duplicating: boolean;
+  showConflicts: boolean;
+  error: string;
+  errorControlId: string;
+  configInitialized: boolean;
+  endEdited: boolean;
 };
 
 export type AppointmentFormResult = {
@@ -161,39 +185,74 @@ export function AppointmentForm({
     : { date: defaultDate ?? "", time: defaultTime ?? "09:00" };
   const endParts = initial ? toDateParts(initial.endTime) : null;
 
-  const [patientId, setPatientId] = useState<Id<"patients"> | undefined>(
-    initial?.patientId ?? defaultPatientId,
-  );
-  const [typeId, setTypeId] = useState<string>(initial?.typeId ?? "");
-  const [title, setTitle] = useState(initial?.title ?? "");
-  const [date, setDate] = useState(startParts.date);
-  const [startTime, setStartTime] = useState(startParts.time);
-  const [endTime, setEndTime] = useState(
-    endParts?.time ?? "",
-  );
-  const [endsNextDay, setEndsNextDay] = useState(
-    Boolean(initial && endParts && endParts.date !== startParts.date),
-  );
-  const [notes, setNotes] = useState(initial?.notes ?? "");
-  const [paymentStatus, setPaymentStatus] = useState<Appt["paymentStatus"]>(
-    initial?.paymentStatus ?? "unpaid",
-  );
-  const [paymentMethod, setPaymentMethod] = useState(
-    initial?.paymentMethod ?? "",
-  );
-  const [paymentNotes, setPaymentNotes] = useState(initial?.paymentNotes ?? "");
-  const [status, setStatus] = useState<Appt["status"]>(
-    initial?.status ?? "confirmed",
-  );
-  const [reminder, setReminder] = useState(initial?.reminderEnabled ?? false);
-  const [recurrenceCount, setRecurrenceCount] = useState<1 | 4 | 8 | 12>(1);
-  const [duplicating, setDuplicating] = useState(false);
-  const [showConflicts, setShowConflicts] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [errorControlId, setErrorControlId] = useState("");
-  const [configInitialized, setConfigInitialized] = useState(Boolean(initial));
-  const [endEdited, setEndEdited] = useState(false);
+  const [state, updateState] = useReducer(mergeFormState<AppointmentState>, {
+    patientId: initial?.patientId ?? defaultPatientId,
+    typeId: initial?.typeId ?? "",
+    title: initial?.title ?? "",
+    date: startParts.date,
+    startTime: startParts.time,
+    endTime: endParts?.time ?? "",
+    endsNextDay: Boolean(
+      initial && endParts && endParts.date !== startParts.date,
+    ),
+    notes: initial?.notes ?? "",
+    paymentStatus: initial?.paymentStatus ?? "unpaid",
+    paymentMethod: initial?.paymentMethod ?? "",
+    paymentNotes: initial?.paymentNotes ?? "",
+    status: initial?.status ?? "confirmed",
+    reminder: initial?.reminderEnabled ?? false,
+    recurrenceCount: 1,
+    duplicating: false,
+    showConflicts: false,
+    error: "",
+    errorControlId: "",
+    configInitialized: Boolean(initial),
+    endEdited: false,
+  });
+  const {
+    patientId,
+    typeId,
+    title,
+    date,
+    startTime,
+    endTime,
+    endsNextDay,
+    notes,
+    paymentStatus,
+    paymentMethod,
+    paymentNotes,
+    status,
+    reminder,
+    recurrenceCount,
+    duplicating,
+    showConflicts,
+    error,
+    errorControlId,
+    configInitialized,
+    endEdited,
+  } = state;
+  const setPatientId = (patientId?: Id<"patients">) => updateState({ patientId });
+  const setTypeId = (typeId: string) => updateState({ typeId });
+  const setTitle = (title: string) => updateState({ title });
+  const setDate = (date: string) => updateState({ date });
+  const setStartTime = (startTime: string) => updateState({ startTime });
+  const setEndTime = (endTime: string) => updateState({ endTime });
+  const setEndsNextDay = (endsNextDay: boolean) => updateState({ endsNextDay });
+  const setNotes = (notes: string) => updateState({ notes });
+  const setPaymentStatus = (paymentStatus: Appt["paymentStatus"]) =>
+    updateState({ paymentStatus });
+  const setPaymentMethod = (paymentMethod: string) => updateState({ paymentMethod });
+  const setPaymentNotes = (paymentNotes: string) => updateState({ paymentNotes });
+  const setStatus = (status: Appt["status"]) => updateState({ status });
+  const setReminder = (reminder: boolean) => updateState({ reminder });
+  const setRecurrenceCount = (recurrenceCount: 1 | 4 | 8 | 12) =>
+    updateState({ recurrenceCount });
+  const setDuplicating = (duplicating: boolean) => updateState({ duplicating });
+  const setShowConflicts = (showConflicts: boolean) => updateState({ showConflicts });
+  const setError = (error: string) => updateState({ error });
+  const setErrorControlId = (errorControlId: string) => updateState({ errorControlId });
+  const setEndEdited = (endEdited: boolean) => updateState({ endEdited });
+  const saving = create.isPending || update.isPending || remove.isPending;
   const submittingRef = useRef(false);
   const baselineRef = useRef<string | null>(null);
 
@@ -226,16 +285,21 @@ export function AppointmentForm({
     // Establish query-backed defaults once; later query updates cannot replace edits.
     const defaultType = types[0];
     if (defaultType) {
-      setTypeId(defaultType._id);
+      const patch: Partial<AppointmentState> = {
+        typeId: defaultType._id,
+        configInitialized: true,
+      };
       if (!endEdited) {
         const duration =
           defaultType.defaultDurationMin ?? settings?.defaultDurationMin ?? 50;
         const nextEnd = timeToMin(startTime) + duration;
-        setEndTime(minToTime(nextEnd));
-        setEndsNextDay(nextEnd >= 1440);
+        patch.endTime = minToTime(nextEnd);
+        patch.endsNextDay = nextEnd >= 1440;
       }
+      updateState(patch);
+    } else {
+      updateState({ configInitialized: true });
     }
-    setConfigInitialized(true);
   }
 
   const valueSignature = JSON.stringify([
@@ -369,9 +433,7 @@ export function AppointmentForm({
       return;
     }
     submittingRef.current = true;
-    setSaving(true);
-    setError("");
-    setErrorControlId("");
+    updateState({ error: "", errorControlId: "" });
     try {
       const start = parseLocalDateTime(date, startTime);
       const end =
@@ -427,15 +489,15 @@ export function AppointmentForm({
     } catch (err) {
       const message = err instanceof Error ? err.message : "Error al guardar";
       if (message.includes("APPOINTMENT_CONFLICT")) {
-        setShowConflicts(true);
-        setError("");
+        updateState({ showConflicts: true, error: "" });
       } else {
-        setError(message.split("Uncaught Error: ").pop()?.split("\n")[0] ?? message);
-        setErrorControlId("");
+        updateState({
+          error: readableError(err, "Error al guardar"),
+          errorControlId: "",
+        });
       }
     } finally {
       submittingRef.current = false;
-      setSaving(false);
     }
   }
 

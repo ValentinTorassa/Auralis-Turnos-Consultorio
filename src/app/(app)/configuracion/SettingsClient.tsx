@@ -21,7 +21,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { useId, useRef, useState } from "react";
+import { useId, useReducer, useRef } from "react";
 import {
   BackupCounts,
   BackupSnapshot,
@@ -33,32 +33,56 @@ import {
   decryptBackup,
   encryptBackup,
 } from "@/lib/backupCrypto";
+import { mergeFormState, readableError } from "@/lib/form-state";
+
+type SettingsDraft = Pick<
+  Doc<"settings">,
+  | "workDayStart"
+  | "workDayEnd"
+  | "defaultDurationMin"
+  | "psychiatristSlotCount"
+  | "psychiatristSlotDurationMin"
+> & { saved: boolean; error: string };
 
 function SettingsForm({ settings }: { settings: Doc<"settings"> }) {
   const update = useMutation(api.settings.update);
-  const [workDayStart, setWorkDayStart] = useState(settings.workDayStart);
-  const [workDayEnd, setWorkDayEnd] = useState(settings.workDayEnd);
-  const [defaultDurationMin, setDefaultDurationMin] = useState(
-    settings.defaultDurationMin,
-  );
-  const [psychiatristSlotCount, setPsychiatristSlotCount] = useState(
-    settings.psychiatristSlotCount,
-  );
-  const [psychiatristSlotDurationMin, setPsychiatristSlotDurationMin] =
-    useState(settings.psychiatristSlotDurationMin);
-  const [saved, setSaved] = useState(false);
+  const [draft, updateDraft] = useReducer(mergeFormState<SettingsDraft>, {
+    workDayStart: settings.workDayStart,
+    workDayEnd: settings.workDayEnd,
+    defaultDurationMin: settings.defaultDurationMin,
+    psychiatristSlotCount: settings.psychiatristSlotCount,
+    psychiatristSlotDurationMin: settings.psychiatristSlotDurationMin,
+    saved: false,
+    error: "",
+  });
+  const {
+    workDayStart,
+    workDayEnd,
+    defaultDurationMin,
+    psychiatristSlotCount,
+    psychiatristSlotDurationMin,
+    saved,
+    error,
+  } = draft;
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    await update({
-      workDayStart,
-      workDayEnd,
-      defaultDurationMin,
-      psychiatristSlotCount,
-      psychiatristSlotDurationMin,
-    });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    updateDraft({ saved: false, error: "" });
+    try {
+      await update({
+        workDayStart,
+        workDayEnd,
+        defaultDurationMin,
+        psychiatristSlotCount,
+        psychiatristSlotDurationMin,
+      });
+      updateDraft({ saved: true });
+      window.setTimeout(() => updateDraft({ saved: false }), 2000);
+    } catch (caught) {
+      updateDraft({
+        error: readableError(caught, "No se pudo guardar la configuración."),
+      });
+    }
   }
 
   return (
@@ -70,7 +94,7 @@ function SettingsForm({ settings }: { settings: Doc<"settings"> }) {
             id="settings-workday-start"
             type="time"
             value={workDayStart}
-            onChange={(e) => setWorkDayStart(e.target.value)}
+            onChange={(e) => updateDraft({ workDayStart: e.target.value })}
           />
         </div>
         <div>
@@ -79,7 +103,7 @@ function SettingsForm({ settings }: { settings: Doc<"settings"> }) {
             id="settings-workday-end"
             type="time"
             value={workDayEnd}
-            onChange={(e) => setWorkDayEnd(e.target.value)}
+            onChange={(e) => updateDraft({ workDayEnd: e.target.value })}
           />
         </div>
       </div>
@@ -94,7 +118,9 @@ function SettingsForm({ settings }: { settings: Doc<"settings"> }) {
           max={180}
           step={5}
           value={defaultDurationMin}
-          onChange={(e) => setDefaultDurationMin(Number(e.target.value))}
+          onChange={(e) =>
+            updateDraft({ defaultDurationMin: Number(e.target.value) })
+          }
         />
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -108,7 +134,9 @@ function SettingsForm({ settings }: { settings: Doc<"settings"> }) {
             min={1}
             max={20}
             value={psychiatristSlotCount}
-            onChange={(e) => setPsychiatristSlotCount(Number(e.target.value))}
+            onChange={(e) =>
+              updateDraft({ psychiatristSlotCount: Number(e.target.value) })
+            }
           />
         </div>
         <div>
@@ -122,7 +150,9 @@ function SettingsForm({ settings }: { settings: Doc<"settings"> }) {
             max={60}
             value={psychiatristSlotDurationMin}
             onChange={(e) =>
-              setPsychiatristSlotDurationMin(Number(e.target.value))
+              updateDraft({
+                psychiatristSlotDurationMin: Number(e.target.value),
+              })
             }
           />
         </div>
@@ -137,56 +167,85 @@ function SettingsForm({ settings }: { settings: Doc<"settings"> }) {
         <Button type="submit">Guardar</Button>
         {saved && <span className="text-sm text-teal-700">Guardado ✓</span>}
       </div>
+      {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
     </form>
   );
+}
+
+type TypeDraft = {
+  editing: boolean;
+  name: string;
+  color: string;
+  requiresPatient: boolean;
+  tracksPayment: boolean;
+  supportsReminder: boolean;
+  defaultDurationMin: number;
+  error: string;
+};
+
+function typeDraft(type: Doc<"appointmentTypes">): TypeDraft {
+  return {
+    editing: false,
+    name: type.name,
+    color: type.color,
+    requiresPatient: type.requiresPatient ?? true,
+    tracksPayment: type.tracksPayment ?? true,
+    supportsReminder: type.supportsReminder ?? true,
+    defaultDurationMin: type.defaultDurationMin ?? 50,
+    error: "",
+  };
 }
 
 function TypeRow({ type }: { type: Doc<"appointmentTypes"> }) {
   const durationId = useId();
   const updateType = useMutation(api.types.update);
   const removeType = useMutation(api.types.remove);
-  const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(type.name);
-  const [color, setColor] = useState(type.color);
-  const [requiresPatient, setRequiresPatient] = useState(
-    type.requiresPatient ?? true,
+  const [draft, updateDraft] = useReducer(
+    mergeFormState<TypeDraft>,
+    typeDraft(type),
   );
-  const [tracksPayment, setTracksPayment] = useState(
-    type.tracksPayment ?? true,
-  );
-  const [supportsReminder, setSupportsReminder] = useState(
-    type.supportsReminder ?? true,
-  );
-  const [defaultDurationMin, setDefaultDurationMin] = useState(
-    type.defaultDurationMin ?? 50,
-  );
-  const [error, setError] = useState("");
+  const {
+    editing,
+    name,
+    color,
+    requiresPatient,
+    tracksPayment,
+    supportsReminder,
+    defaultDurationMin,
+    error,
+  } = draft;
 
   async function handleSave() {
     if (!name.trim()) return;
-    await updateType({
-      id: type._id,
-      name,
-      color,
-      requiresPatient,
-      tracksPayment,
-      supportsReminder,
-      defaultDurationMin,
-    });
-    setEditing(false);
+    updateDraft({ error: "" });
+    try {
+      await updateType({
+        id: type._id,
+        name: name.trim(),
+        color,
+        requiresPatient,
+        tracksPayment,
+        supportsReminder,
+        defaultDurationMin,
+      });
+      updateDraft({ editing: false });
+    } catch (caught) {
+      updateDraft({ error: readableError(caught, "No se pudo actualizar.") });
+    }
   }
 
   async function handleDelete() {
     if (!confirm(`¿Eliminar el tipo "${type.name}"?`)) return;
-    setError("");
+    updateDraft({ error: "" });
     try {
       await removeType({ id: type._id });
     } catch (e) {
-      setError(
-        e instanceof Error && e.message.includes("turnos")
-          ? "No se puede eliminar: hay turnos que usan este tipo."
-          : "No se pudo eliminar.",
-      );
+      updateDraft({
+        error:
+          e instanceof Error && e.message.includes("turnos")
+            ? "No se puede eliminar: hay turnos que usan este tipo."
+            : "No se pudo eliminar.",
+      });
     }
   }
 
@@ -200,13 +259,13 @@ function TypeRow({ type }: { type: Doc<"appointmentTypes"> }) {
               aria-label={`Color de ${type.name}`}
               className="h-9 w-12 shrink-0 p-1"
               value={color}
-              onChange={(e) => setColor(e.target.value)}
+              onChange={(e) => updateDraft({ color: e.target.value })}
             />
             <Input
               aria-label="Nombre del tipo de actividad"
               className="h-9"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => updateDraft({ name: e.target.value })}
               autoFocus
             />
           </div>
@@ -215,7 +274,9 @@ function TypeRow({ type }: { type: Doc<"appointmentTypes"> }) {
               <input
                 type="checkbox"
                 checked={requiresPatient}
-                onChange={(e) => setRequiresPatient(e.target.checked)}
+                onChange={(e) =>
+                  updateDraft({ requiresPatient: e.target.checked })
+                }
                 className="accent-teal-700"
               />
               Requiere paciente
@@ -224,7 +285,9 @@ function TypeRow({ type }: { type: Doc<"appointmentTypes"> }) {
               <input
                 type="checkbox"
                 checked={tracksPayment}
-                onChange={(e) => setTracksPayment(e.target.checked)}
+                onChange={(e) =>
+                  updateDraft({ tracksPayment: e.target.checked })
+                }
                 className="accent-teal-700"
               />
               Registra pago
@@ -233,7 +296,9 @@ function TypeRow({ type }: { type: Doc<"appointmentTypes"> }) {
               <input
                 type="checkbox"
                 checked={supportsReminder}
-                onChange={(e) => setSupportsReminder(e.target.checked)}
+                onChange={(e) =>
+                  updateDraft({ supportsReminder: e.target.checked })
+                }
                 className="accent-teal-700"
               />
               Admite aviso
@@ -251,7 +316,9 @@ function TypeRow({ type }: { type: Doc<"appointmentTypes"> }) {
                 step={5}
                 className="h-9"
                 value={defaultDurationMin}
-                onChange={(e) => setDefaultDurationMin(Number(e.target.value))}
+                onChange={(e) =>
+                  updateDraft({ defaultDurationMin: Number(e.target.value) })
+                }
               />
             </div>
             <button
@@ -265,13 +332,7 @@ function TypeRow({ type }: { type: Doc<"appointmentTypes"> }) {
             <button
               type="button"
               onClick={() => {
-                setEditing(false);
-                setName(type.name);
-                setColor(type.color);
-                setRequiresPatient(type.requiresPatient ?? true);
-                setTracksPayment(type.tracksPayment ?? true);
-                setSupportsReminder(type.supportsReminder ?? true);
-                setDefaultDurationMin(type.defaultDurationMin ?? 50);
+                updateDraft(typeDraft(type));
               }}
               className="rounded-lg p-2 text-stone-500 transition hover:bg-stone-100"
               aria-label="Cancelar"
@@ -300,7 +361,7 @@ function TypeRow({ type }: { type: Doc<"appointmentTypes"> }) {
           </span>
           <button
             type="button"
-            onClick={() => setEditing(true)}
+            onClick={() => updateDraft({ editing: true })}
             className="rounded-lg p-2 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
             aria-label="Editar"
           >
@@ -365,18 +426,52 @@ function BackupSection() {
   const convex = useConvex();
   const restore = useMutation(api.backup.restoreSnapshot);
   const fileRef = useRef<HTMLInputElement>(null);
-  const [exportPassphrase, setExportPassphrase] = useState("");
-  const [exportConfirmation, setExportConfirmation] = useState("");
-  const [exportBusy, setExportBusy] = useState(false);
-  const [exportError, setExportError] = useState("");
-  const [exportSummary, setExportSummary] = useState<BackupCounts | null>(null);
-  const [restorePassphrase, setRestorePassphrase] = useState("");
-  const [restoreBusy, setRestoreBusy] = useState(false);
-  const [restoreError, setRestoreError] = useState("");
-  const [snapshot, setSnapshot] = useState<BackupSnapshot | null>(null);
-  const [preview, setPreview] = useState<RestorePreview | null>(null);
-  const [destructiveConfirmation, setDestructiveConfirmation] = useState("");
-  const [restoreSummary, setRestoreSummary] = useState<BackupCounts | null>(null);
+  const [state, updateState] = useReducer(mergeFormState<BackupState>, {
+    exportPassphrase: "",
+    exportConfirmation: "",
+    exportBusy: false,
+    exportError: "",
+    exportSummary: null,
+    restorePassphrase: "",
+    restoreBusy: false,
+    restoreError: "",
+    snapshot: null,
+    preview: null,
+    destructiveConfirmation: "",
+    restoreSummary: null,
+  });
+  const {
+    exportPassphrase,
+    exportConfirmation,
+    exportBusy,
+    exportError,
+    exportSummary,
+    restorePassphrase,
+    restoreBusy,
+    restoreError,
+    snapshot,
+    preview,
+    destructiveConfirmation,
+    restoreSummary,
+  } = state;
+  const setExportPassphrase = (exportPassphrase: string) =>
+    updateState({ exportPassphrase });
+  const setExportConfirmation = (exportConfirmation: string) =>
+    updateState({ exportConfirmation });
+  const setExportBusy = (exportBusy: boolean) => updateState({ exportBusy });
+  const setExportError = (exportError: string) => updateState({ exportError });
+  const setExportSummary = (exportSummary: BackupCounts | null) =>
+    updateState({ exportSummary });
+  const setRestorePassphrase = (restorePassphrase: string) =>
+    updateState({ restorePassphrase });
+  const setRestoreBusy = (restoreBusy: boolean) => updateState({ restoreBusy });
+  const setRestoreError = (restoreError: string) => updateState({ restoreError });
+  const setSnapshot = (snapshot: BackupSnapshot | null) => updateState({ snapshot });
+  const setPreview = (preview: RestorePreview | null) => updateState({ preview });
+  const setDestructiveConfirmation = (destructiveConfirmation: string) =>
+    updateState({ destructiveConfirmation });
+  const setRestoreSummary = (restoreSummary: BackupCounts | null) =>
+    updateState({ restoreSummary });
 
   async function handleExport() {
     setExportError("");
@@ -665,18 +760,57 @@ function BackupSection() {
   );
 }
 
+type NewTypeDraft = {
+  name: string;
+  color: string;
+  requiresPatient: boolean;
+  tracksPayment: boolean;
+  supportsReminder: boolean;
+  defaultDurationMin: number;
+};
+
+type BackupState = {
+  exportPassphrase: string;
+  exportConfirmation: string;
+  exportBusy: boolean;
+  exportError: string;
+  exportSummary: BackupCounts | null;
+  restorePassphrase: string;
+  restoreBusy: boolean;
+  restoreError: string;
+  snapshot: BackupSnapshot | null;
+  preview: RestorePreview | null;
+  destructiveConfirmation: string;
+  restoreSummary: BackupCounts | null;
+};
+
+const initialNewTypeDraft: NewTypeDraft = {
+  name: "",
+  color: "#6366F1",
+  requiresPatient: true,
+  tracksPayment: true,
+  supportsReminder: true,
+  defaultDurationMin: 50,
+};
+
 export function SettingsClient() {
   const settings = useQuery(api.settings.get);
   const types = useQuery(api.types.list) ?? [];
   const createType = useMutation(api.types.create);
   const { signOut } = useAuthActions();
 
-  const [newTypeName, setNewTypeName] = useState("");
-  const [newTypeColor, setNewTypeColor] = useState("#6366F1");
-  const [newRequiresPatient, setNewRequiresPatient] = useState(true);
-  const [newTracksPayment, setNewTracksPayment] = useState(true);
-  const [newSupportsReminder, setNewSupportsReminder] = useState(true);
-  const [newDefaultDurationMin, setNewDefaultDurationMin] = useState(50);
+  const [newType, updateNewType] = useReducer(
+    mergeFormState<NewTypeDraft>,
+    initialNewTypeDraft,
+  );
+  const {
+    name: newTypeName,
+    color: newTypeColor,
+    requiresPatient: newRequiresPatient,
+    tracksPayment: newTracksPayment,
+    supportsReminder: newSupportsReminder,
+    defaultDurationMin: newDefaultDurationMin,
+  } = newType;
 
   return (
     <div className="anim-page space-y-5 max-w-2xl">
@@ -730,14 +864,14 @@ export function SettingsClient() {
               aria-label="Nombre del nuevo tipo de actividad"
               placeholder="Nuevo tipo..."
               value={newTypeName}
-              onChange={(e) => setNewTypeName(e.target.value)}
+              onChange={(e) => updateNewType({ name: e.target.value })}
             />
             <Input
               type="color"
               aria-label="Color del nuevo tipo de actividad"
               className="h-11 w-full p-1 sm:w-20"
               value={newTypeColor}
-              onChange={(e) => setNewTypeColor(e.target.value)}
+              onChange={(e) => updateNewType({ color: e.target.value })}
             />
             <Input
               type="number"
@@ -746,7 +880,9 @@ export function SettingsClient() {
               aria-label="Duración por defecto en minutos"
               className="sm:w-28"
               value={newDefaultDurationMin}
-              onChange={(e) => setNewDefaultDurationMin(Number(e.target.value))}
+              onChange={(e) =>
+                updateNewType({ defaultDurationMin: Number(e.target.value) })
+              }
             />
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-stone-700">
@@ -754,7 +890,9 @@ export function SettingsClient() {
               <input
                 type="checkbox"
                 checked={newRequiresPatient}
-                onChange={(e) => setNewRequiresPatient(e.target.checked)}
+                onChange={(e) =>
+                  updateNewType({ requiresPatient: e.target.checked })
+                }
                 className="accent-teal-700"
               />
               Requiere paciente
@@ -763,7 +901,9 @@ export function SettingsClient() {
               <input
                 type="checkbox"
                 checked={newTracksPayment}
-                onChange={(e) => setNewTracksPayment(e.target.checked)}
+                onChange={(e) =>
+                  updateNewType({ tracksPayment: e.target.checked })
+                }
                 className="accent-teal-700"
               />
               Registra pago
@@ -772,7 +912,9 @@ export function SettingsClient() {
               <input
                 type="checkbox"
                 checked={newSupportsReminder}
-                onChange={(e) => setNewSupportsReminder(e.target.checked)}
+                onChange={(e) =>
+                  updateNewType({ supportsReminder: e.target.checked })
+                }
                 className="accent-teal-700"
               />
               Admite aviso
@@ -791,7 +933,7 @@ export function SettingsClient() {
                 supportsReminder: newSupportsReminder,
                 defaultDurationMin: newDefaultDurationMin,
               });
-              setNewTypeName("");
+              updateNewType({ name: "" });
             }}
           >
             Agregar

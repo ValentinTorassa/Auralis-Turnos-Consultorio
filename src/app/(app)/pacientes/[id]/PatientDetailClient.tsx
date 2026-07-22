@@ -1,6 +1,7 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
+import { convexQuery, useConvexMutation } from "@convex-dev/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "../../../../../convex/_generated/api";
 import { Doc, Id } from "../../../../../convex/_generated/dataModel";
 import {
@@ -35,7 +36,20 @@ import {
   AppointmentFormResult,
 } from "@/components/AppointmentForm";
 import Link from "next/link";
-import { useState } from "react";
+import { useReducer, useState } from "react";
+import { mergeFormState, readableError } from "@/lib/form-state";
+import { DatePicker } from "@/components/ui/date-picker";
+
+type PatientDraft = {
+  fullName: string;
+  phone: string;
+  birthDate: string;
+  careType: string;
+  adminNotes: string;
+  saving: boolean;
+  saved: boolean;
+  error: string;
+};
 
 function PatientForm({
   id,
@@ -44,24 +58,38 @@ function PatientForm({
   id: Id<"patients">;
   patient: Doc<"patients">;
 }) {
-  const update = useMutation(api.patients.update);
-  const [fullName, setFullName] = useState(patient.fullName);
-  const [phone, setPhone] = useState(patient.phone ?? "");
-  const [birthDate, setBirthDate] = useState(patient.birthDate ?? "");
-  const [careType, setCareType] = useState(patient.careType);
-  const [adminNotes, setAdminNotes] = useState(patient.adminNotes ?? "");
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const update = useMutation({
+    mutationFn: useConvexMutation(api.patients.update),
+  });
+  const [draft, updateDraft] = useReducer(mergeFormState<PatientDraft>, {
+    fullName: patient.fullName,
+    phone: patient.phone ?? "",
+    birthDate: patient.birthDate ?? "",
+    careType: patient.careType,
+    adminNotes: patient.adminNotes ?? "",
+    saving: false,
+    saved: false,
+    error: "",
+  });
+  const { fullName, phone, birthDate, careType, adminNotes, saving, saved, error } = draft;
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true);
-    setSaved(false);
+    updateDraft({ saving: true, saved: false, error: "" });
     try {
-      await update({ id, fullName, phone, birthDate, careType, adminNotes });
-      setSaved(true);
+      await update.mutateAsync({
+        id,
+        fullName: fullName.trim(),
+        phone,
+        birthDate,
+        careType,
+        adminNotes,
+      });
+      updateDraft({ saved: true });
+    } catch (caught) {
+      updateDraft({ error: readableError(caught, "No se pudo guardar.") });
     } finally {
-      setSaving(false);
+      updateDraft({ saving: false });
     }
   }
 
@@ -72,7 +100,7 @@ function PatientForm({
         <Input
           id="patient-detail-name"
           value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
+          onChange={(e) => updateDraft({ fullName: e.target.value })}
           required
         />
       </div>
@@ -82,16 +110,15 @@ function PatientForm({
           <Input
             id="patient-detail-phone"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={(e) => updateDraft({ phone: e.target.value })}
           />
         </div>
         <div>
           <Label htmlFor="patient-detail-birth-date">Nacimiento</Label>
-          <Input
+          <DatePicker
             id="patient-detail-birth-date"
-            type="date"
             value={birthDate}
-            onChange={(e) => setBirthDate(e.target.value)}
+            onChange={(birthDate) => updateDraft({ birthDate })}
           />
         </div>
       </div>
@@ -100,7 +127,7 @@ function PatientForm({
         <Select
           id="patient-detail-care-type"
           value={careType}
-          onChange={(e) => setCareType(e.target.value)}
+          onChange={(e) => updateDraft({ careType: e.target.value })}
         >
           {["Consultorio", "Pericia", "Psiquiatría", "Armas / CLU", "Otro"].map((t) => (
             <option key={t} value={t}>
@@ -116,7 +143,7 @@ function PatientForm({
         <Textarea
           id="patient-detail-admin-notes"
           value={adminNotes}
-          onChange={(e) => setAdminNotes(e.target.value)}
+          onChange={(e) => updateDraft({ adminNotes: e.target.value })}
         />
       </div>
       <div className="flex items-center gap-3">
@@ -126,20 +153,29 @@ function PatientForm({
         </Button>
         {saved && <span className="text-sm text-teal-700">Guardado ✓</span>}
       </div>
+      {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
     </form>
   );
 }
 
 export function PatientDetailClient({ id: rawId }: { id: string }) {
   const id = rawId as Id<"patients">;
-  const data = useQuery(api.patients.get, { id });
-  const warnings = useQuery(api.patients.warnings, { patientId: id }) ?? [];
+  const { data } = useQuery(convexQuery(api.patients.get, { id }));
+  const { data: warnings = [] } = useQuery(
+    convexQuery(api.patients.warnings, { patientId: id }),
+  );
   const [openNew, setOpenNew] = useState(false);
   const [editId, setEditId] = useState<Id<"appointments"> | null>(null);
   const [deleted, setDeleted] = useState<AppointmentFormResult | null>(null);
-  const archive = useMutation(api.patients.archive);
-  const reactivate = useMutation(api.patients.reactivate);
-  const restoreAppointment = useMutation(api.appointments.restore);
+  const archive = useMutation({
+    mutationFn: useConvexMutation(api.patients.archive),
+  });
+  const reactivate = useMutation({
+    mutationFn: useConvexMutation(api.patients.reactivate),
+  });
+  const restoreAppointment = useMutation({
+    mutationFn: useConvexMutation(api.appointments.restore),
+  });
 
   if (data === undefined) {
     return (
@@ -198,9 +234,10 @@ export function PatientDetailClient({ id: rawId }: { id: string }) {
           )}
           <Button
             variant="outline"
-            onClick={() =>
-              void (patient.archivedAt ? reactivate({ id }) : archive({ id }))
-            }
+            onClick={() => {
+              if (patient.archivedAt) reactivate.mutate({ id });
+              else archive.mutate({ id });
+            }}
           >
             {patient.archivedAt ? "Reactivar" : "Archivar"}
           </Button>
@@ -220,7 +257,7 @@ export function PatientDetailClient({ id: rawId }: { id: string }) {
             size="sm"
             variant="outline"
             onClick={async () => {
-              await restoreAppointment({ id: deleted.id });
+              await restoreAppointment.mutateAsync({ id: deleted.id });
               setDeleted(null);
             }}
           >

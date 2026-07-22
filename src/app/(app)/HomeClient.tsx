@@ -1,6 +1,7 @@
 "use client";
 
-import { useQuery, useMutation } from "convex/react";
+import { convexQuery, useConvexMutation } from "@convex-dev/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "../../../convex/_generated/api";
 import { TaskPanel } from "@/components/TaskPanel";
 import {
@@ -44,10 +45,14 @@ import {
   SunMedium,
   Wallet,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useReducer, useState } from "react";
 import { Id } from "../../../convex/_generated/dataModel";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
+import { useQueryState } from "nuqs";
+import { homeTaskSearchParams } from "@/lib/search-params";
+import { mergeFormState, readableError } from "@/lib/form-state";
+import { DatePicker } from "@/components/ui/date-picker";
 
 function greeting(now: number): string {
   if (now === 0) return "Hoy";
@@ -63,27 +68,50 @@ function greeting(now: number): string {
   return "Buenas noches";
 }
 
+type ReminderDraft = {
+  message: string;
+  patientId?: Id<"patients">;
+  date: string;
+  time: string;
+  saving: boolean;
+  error: string;
+};
+
+type ActiveDialog =
+  | { kind: "new-appointment" }
+  | { kind: "new-reminder" }
+  | { kind: "edit-appointment"; id: Id<"appointments"> }
+  | null;
+
 function NewReminderForm({ onDone }: { onDone: () => void }) {
-  const createReminder = useMutation(api.reminders.create);
-  const [message, setMessage] = useState("");
-  const [patientId, setPatientId] = useState<Id<"patients"> | undefined>();
-  const [date, setDate] = useState(todayKey());
-  const [time, setTime] = useState("09:00");
-  const [saving, setSaving] = useState(false);
+  const createReminder = useMutation({
+    mutationFn: useConvexMutation(api.reminders.create),
+  });
+  const [draft, updateDraft] = useReducer(mergeFormState<ReminderDraft>, {
+    message: "",
+    patientId: undefined,
+    date: todayKey(),
+    time: "09:00",
+    saving: false,
+    error: "",
+  });
+  const { message, patientId, date, time, saving, error } = draft;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!message.trim()) return;
-    setSaving(true);
+    updateDraft({ saving: true, error: "" });
     try {
-      await createReminder({
-        message,
+      await createReminder.mutateAsync({
+        message: message.trim(),
         patientId,
         dueAt: parseLocalDateTime(date, time),
       });
       onDone();
+    } catch (caught) {
+      updateDraft({ error: readableError(caught, "No se pudo crear el aviso.") });
     } finally {
-      setSaving(false);
+      updateDraft({ saving: false });
     }
   }
 
@@ -94,7 +122,7 @@ function NewReminderForm({ onDone }: { onDone: () => void }) {
         <Textarea
           id="new-reminder-message"
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          onChange={(e) => updateDraft({ message: e.target.value })}
           placeholder="Ej. Confirmar turno, pedir informe..."
           autoFocus
           required
@@ -106,17 +134,16 @@ function NewReminderForm({ onDone }: { onDone: () => void }) {
           id="new-reminder-patient"
           aria-labelledby="new-reminder-patient-label"
           value={patientId}
-          onChange={(id) => setPatientId(id)}
+          onChange={(patientId) => updateDraft({ patientId })}
         />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label htmlFor="new-reminder-date">Fecha</Label>
-          <Input
+          <DatePicker
             id="new-reminder-date"
-            type="date"
             value={date}
-            onChange={(e) => setDate(e.target.value)}
+            onChange={(date) => updateDraft({ date })}
             required
           />
         </div>
@@ -126,7 +153,7 @@ function NewReminderForm({ onDone }: { onDone: () => void }) {
             id="new-reminder-time"
             type="time"
             value={time}
-            onChange={(e) => setTime(e.target.value)}
+            onChange={(e) => updateDraft({ time: e.target.value })}
             required
           />
         </div>
@@ -138,6 +165,7 @@ function NewReminderForm({ onDone }: { onDone: () => void }) {
       >
         {saving ? "Guardando..." : "Crear aviso"}
       </Button>
+      {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
     </form>
   );
 }
@@ -145,15 +173,27 @@ function NewReminderForm({ onDone }: { onDone: () => void }) {
 export function HomeClient() {
   const date = todayKey();
   const now = useNow();
-  const summary = useQuery(api.appointments.todaySummary, { date });
-  const reminders = useQuery(api.reminders.pending) ?? [];
-  const markDone = useMutation(api.reminders.markDone);
-  const closeout = useMutation(api.appointments.closeout);
-  const restoreAppointment = useMutation(api.appointments.restore);
-  const [openNew, setOpenNew] = useState(false);
-  const [openReminder, setOpenReminder] = useState(false);
-  const [editId, setEditId] = useState<Id<"appointments"> | null>(null);
-  const [taskDate, setTaskDate] = useState(() => todayKey());
+  const { data: summary } = useQuery(
+    convexQuery(api.appointments.todaySummary, { date }),
+  );
+  const { data: reminders = [] } = useQuery(
+    convexQuery(api.reminders.pending, {}),
+  );
+  const markDone = useMutation({
+    mutationFn: useConvexMutation(api.reminders.markDone),
+  });
+  const closeout = useMutation({
+    mutationFn: useConvexMutation(api.appointments.closeout),
+  });
+  const restoreAppointment = useMutation({
+    mutationFn: useConvexMutation(api.appointments.restore),
+  });
+  const [activeDialog, setActiveDialog] = useState<ActiveDialog>(null);
+  const [taskDateParam, setTaskDate] = useQueryState(
+    "tasks",
+    homeTaskSearchParams.tasks.withOptions({ history: "push", shallow: true }),
+  );
+  const taskDate = taskDateParam || date;
   const [deleted, setDeleted] = useState<Id<"appointments"> | null>(null);
 
   const appointments = useMemo(() => summary?.appointments ?? [], [summary]);
@@ -166,8 +206,13 @@ export function HomeClient() {
         )
       : summary?.next;
   const editAppt = useMemo(
-    () => appointments.find((a) => a._id === editId),
-    [appointments, editId],
+    () =>
+      appointments.find(
+        (appointment) =>
+          activeDialog?.kind === "edit-appointment" &&
+          appointment._id === activeDialog.id,
+      ),
+    [activeDialog, appointments],
   );
 
   const dueReminders =
@@ -183,8 +228,7 @@ export function HomeClient() {
   ).length;
 
   function finishAppointment(result: AppointmentFormResult) {
-    setOpenNew(false);
-    setEditId(null);
+    setActiveDialog(null);
     if (result.deleted) setDeleted(result.id);
   }
 
@@ -227,7 +271,10 @@ export function HomeClient() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => setOpenNew(true)} size="lg">
+          <Button
+            onClick={() => setActiveDialog({ kind: "new-appointment" })}
+            size="lg"
+          >
             <CalendarPlus className="h-5 w-5" />
             Turno
           </Button>
@@ -248,7 +295,7 @@ export function HomeClient() {
             size="sm"
             variant="outline"
             onClick={async () => {
-              await restoreAppointment({ id: deleted });
+              await restoreAppointment.mutateAsync({ id: deleted });
               setDeleted(null);
             }}
           >
@@ -287,7 +334,9 @@ export function HomeClient() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setEditId(next._id)}
+              onClick={() =>
+                setActiveDialog({ kind: "edit-appointment", id: next._id })
+              }
             >
               Abrir
               <ArrowUpRight className="h-4 w-4" />
@@ -326,12 +375,14 @@ export function HomeClient() {
                     <div
                       role="button"
                       tabIndex={0}
-                      onClick={() => setEditId(a._id)}
+                      onClick={() =>
+                        setActiveDialog({ kind: "edit-appointment", id: a._id })
+                      }
                       onKeyDown={(event) => {
                         if (event.target !== event.currentTarget) return;
                         if (event.key === "Enter" || event.key === " ") {
                           event.preventDefault();
-                          setEditId(a._id);
+                          setActiveDialog({ kind: "edit-appointment", id: a._id });
                         }
                       }}
                       className={`w-full rounded-3xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md ${
@@ -402,7 +453,7 @@ export function HomeClient() {
                             size="sm"
                             onClick={(event) => {
                               event.stopPropagation();
-                              void closeout({ id: a._id, action: "completed_paid" });
+                              closeout.mutate({ id: a._id, action: "completed_paid" });
                             }}
                           >
                             {a.type?.tracksPayment === false ? "Realizado" : "Realizado + pagó"}
@@ -413,7 +464,7 @@ export function HomeClient() {
                               variant="outline"
                               onClick={(event) => {
                                 event.stopPropagation();
-                                void closeout({ id: a._id, action: "completed_owes" });
+                                closeout.mutate({ id: a._id, action: "completed_owes" });
                               }}
                             >
                               Realizado + debe
@@ -424,7 +475,7 @@ export function HomeClient() {
                             variant="ghost"
                             onClick={(event) => {
                               event.stopPropagation();
-                              void closeout({ id: a._id, action: "no_show" });
+                              closeout.mutate({ id: a._id, action: "no_show" });
                             }}
                           >
                             Ausente
@@ -434,7 +485,7 @@ export function HomeClient() {
                             variant="ghost"
                             onClick={(event) => {
                               event.stopPropagation();
-                              void closeout({ id: a._id, action: "cancelled" });
+                              closeout.mutate({ id: a._id, action: "cancelled" });
                             }}
                           >
                             Cancelar
@@ -450,7 +501,13 @@ export function HomeClient() {
         </div>
 
         <div className="lg:col-span-2 space-y-5">
-          <TaskPanel date={taskDate} onDateChange={setTaskDate} />
+          <TaskPanel
+            date={taskDate}
+            today={date}
+            onDateChange={(nextDate) =>
+              void setTaskDate(nextDate === date ? null : nextDate)
+            }
+          />
 
           <Card className="p-4 sm:p-5">
             <div className="mb-3 flex items-center justify-between gap-2">
@@ -465,7 +522,7 @@ export function HomeClient() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setOpenReminder(true)}
+                onClick={() => setActiveDialog({ kind: "new-reminder" })}
                 aria-label="Nuevo aviso"
               >
                 <BellPlus className="h-4 w-4" />
@@ -504,7 +561,7 @@ export function HomeClient() {
                       )}
                       <button
                         type="button"
-                        onClick={() => void markDone({ id: r._id })}
+                        onClick={() => markDone.mutate({ id: r._id })}
                         className="inline-flex items-center gap-1 rounded-xl border border-stone-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-stone-700 transition hover:bg-stone-50"
                       >
                         <CheckCircle2 className="h-3.5 w-3.5 text-teal-600" />
@@ -520,24 +577,24 @@ export function HomeClient() {
       </div>
 
       <AppointmentModal
-        open={openNew}
-        onClose={() => setOpenNew(false)}
+        open={activeDialog?.kind === "new-appointment"}
+        onClose={() => setActiveDialog(null)}
         title="Nuevo turno"
         defaultDate={date}
         onDone={finishAppointment}
       />
 
       <Modal
-        open={openReminder}
-        onClose={() => setOpenReminder(false)}
+        open={activeDialog?.kind === "new-reminder"}
+        onClose={() => setActiveDialog(null)}
         title="Nuevo aviso"
       >
-        <NewReminderForm onDone={() => setOpenReminder(false)} />
+        <NewReminderForm onDone={() => setActiveDialog(null)} />
       </Modal>
 
       <AppointmentModal
         open={!!editAppt}
-        onClose={() => setEditId(null)}
+        onClose={() => setActiveDialog(null)}
         title="Editar turno"
         initial={editAppt}
         onDone={finishAppointment}

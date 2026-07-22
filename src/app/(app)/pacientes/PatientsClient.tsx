@@ -1,6 +1,7 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
+import { convexQuery, useConvexMutation } from "@convex-dev/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "../../../../convex/_generated/api";
 import {
   Button,
@@ -21,8 +22,12 @@ import {
 } from "lucide-react";
 import { IconBadge } from "@/components/Icons";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useReducer, useState } from "react";
 import { cn, whatsappUrl } from "@/lib/utils";
+import { debounce, useQueryState } from "nuqs";
+import { patientListSearchParams } from "@/lib/search-params";
+import { mergeFormState, readableError } from "@/lib/form-state";
+import { DatePicker } from "@/components/ui/date-picker";
 
 const CARE_TYPES = [
   "Consultorio",
@@ -64,24 +69,48 @@ function avatarColor(name: string): string {
   return AVATAR_COLORS[hash % AVATAR_COLORS.length];
 }
 
+type NewPatientDraft = {
+  fullName: string;
+  phone: string;
+  birthDate: string;
+  careType: string;
+  adminNotes: string;
+};
+
+const initialNewPatientDraft: NewPatientDraft = {
+  fullName: "",
+  phone: "",
+  birthDate: "",
+  careType: "Consultorio",
+  adminNotes: "",
+};
+
 export function PatientsClient() {
   const [includeArchived, setIncludeArchived] = useState(false);
-  const patientsQuery = useQuery(api.patients.list, { includeArchived });
-  const create = useMutation(api.patients.create);
-  const [q, setQ] = useState("");
+  const { data: patientsQuery } = useQuery(
+    convexQuery(api.patients.list, { includeArchived }),
+  );
+  const create = useMutation({
+    mutationFn: useConvexMutation(api.patients.create),
+  });
+  const [q, setQ] = useQueryState("q", patientListSearchParams.q.withOptions({
+    history: "replace",
+    shallow: true,
+    limitUrlUpdates: debounce(300),
+  }));
   const [open, setOpen] = useState(false);
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [birthDate, setBirthDate] = useState("");
-  const [careType, setCareType] = useState("Consultorio");
-  const [adminNotes, setAdminNotes] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const duplicates = useQuery(
-    api.patients.duplicateCandidates,
-    open && fullName.trim()
-      ? { fullName, phone: phone || undefined }
-      : "skip",
+  const [draft, updateDraft] = useReducer(
+    mergeFormState<NewPatientDraft>,
+    initialNewPatientDraft,
+  );
+  const { fullName, phone, birthDate, careType, adminNotes } = draft;
+  const { data: duplicates } = useQuery(
+    convexQuery(
+      api.patients.duplicateCandidates,
+      open && fullName.trim()
+        ? { fullName, phone: phone || undefined }
+        : "skip",
+    ),
   );
 
   const loading = patientsQuery === undefined;
@@ -108,26 +137,19 @@ export function PatientsClient() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true);
-    setError("");
+    create.reset();
     try {
-      await create({
-        fullName,
+      await create.mutateAsync({
+        fullName: fullName.trim(),
         phone: phone || undefined,
         birthDate: birthDate || undefined,
         careType,
         adminNotes: adminNotes || undefined,
       });
       setOpen(false);
-      setFullName("");
-      setPhone("");
-      setBirthDate("");
-      setCareType("Consultorio");
-      setAdminNotes("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo crear");
-    } finally {
-      setSaving(false);
+      updateDraft(initialNewPatientDraft);
+    } catch {
+      // TanStack conserva el error para mostrarlo en el formulario.
     }
   }
 
@@ -168,7 +190,7 @@ export function PatientsClient() {
           className="pl-10"
           placeholder="Buscar por nombre o teléfono..."
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(e) => void setQ(e.target.value || null)}
         />
       </div>
 
@@ -237,11 +259,11 @@ export function PatientsClient() {
             <Input
               id="new-patient-name"
               value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
+              onChange={(e) => updateDraft({ fullName: e.target.value })}
               required
               autoFocus
-              aria-invalid={Boolean(error)}
-              aria-describedby={error ? "new-patient-error" : undefined}
+              aria-invalid={Boolean(create.error)}
+              aria-describedby={create.error ? "new-patient-error" : undefined}
             />
           </div>
           <div>
@@ -249,18 +271,17 @@ export function PatientsClient() {
             <Input
               id="new-patient-phone"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => updateDraft({ phone: e.target.value })}
               placeholder="341..."
               inputMode="tel"
             />
           </div>
           <div>
             <Label htmlFor="new-patient-birth-date">Fecha de nacimiento</Label>
-            <Input
+            <DatePicker
               id="new-patient-birth-date"
-              type="date"
               value={birthDate}
-              onChange={(e) => setBirthDate(e.target.value)}
+              onChange={(birthDate) => updateDraft({ birthDate })}
             />
           </div>
           <div>
@@ -268,7 +289,7 @@ export function PatientsClient() {
             <Select
               id="new-patient-care-type"
               value={careType}
-              onChange={(e) => setCareType(e.target.value)}
+              onChange={(e) => updateDraft({ careType: e.target.value })}
             >
               {CARE_TYPES.map((t) => (
                 <option key={t} value={t}>
@@ -284,7 +305,7 @@ export function PatientsClient() {
             <Textarea
               id="new-patient-admin-notes"
               value={adminNotes}
-              onChange={(e) => setAdminNotes(e.target.value)}
+              onChange={(e) => updateDraft({ adminNotes: e.target.value })}
               placeholder="Obra social, datos útiles..."
             />
           </div>
@@ -294,17 +315,17 @@ export function PatientsClient() {
               Revisala antes de crear otra.
             </p>
           )}
-          {error && (
+          {create.error && (
             <p id="new-patient-error" role="alert" className="text-sm text-rose-700">
-              {error}
+              {readableError(create.error, "No se pudo crear la ficha.")}
             </p>
           )}
           <Button
             type="submit"
             className="w-full"
-            disabled={saving}
+            disabled={create.isPending || !fullName.trim()}
           >
-            {saving ? "Guardando..." : "Crear ficha"}
+            {create.isPending ? "Guardando..." : "Crear ficha"}
           </Button>
         </form>
       </Modal>

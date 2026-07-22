@@ -3,7 +3,6 @@
 import { convexQuery, useConvexMutation } from "@convex-dev/react-query";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "../../convex/_generated/api";
-import { useState } from "react";
 import { Button, Card, Empty, Input } from "./ui";
 import { IconBadge } from "./Icons";
 import {
@@ -16,6 +15,7 @@ import {
 } from "lucide-react";
 import { addDays, cn } from "@/lib/utils";
 import { DatePicker } from "@/components/ui/date-picker";
+import { readableError } from "@/lib/form-state";
 
 function shortLabel(date: string): string {
   return new Intl.DateTimeFormat("es-AR", {
@@ -46,20 +46,19 @@ export function TaskPanel({
   const remove = useMutation({
     mutationFn: useConvexMutation(api.tasks.remove),
   });
-  const [title, setTitle] = useState("");
-  const [adding, setAdding] = useState(false);
-
   const isToday = Boolean(today) && date === today;
 
-  async function addTask(e: React.FormEvent) {
+  async function addTask(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!title.trim()) return;
-    setAdding(true);
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+    const title = String(formData.get("title") ?? "").trim();
+    if (!title) return;
     try {
       await create.mutateAsync({ date, title });
-      setTitle("");
-    } finally {
-      setAdding(false);
+      form.reset();
+    } catch {
+      // TanStack conserva el error para mostrarlo debajo del formulario.
     }
   }
 
@@ -123,9 +122,9 @@ export function TaskPanel({
 
       <form onSubmit={addTask} className="mb-4 flex gap-2">
         <Input
+          name="title"
+          required
           aria-label="Nueva tarea"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
           placeholder={
             isToday
               ? "Ej. Llamar al abogado..."
@@ -134,7 +133,7 @@ export function TaskPanel({
         />
         <Button
           type="submit"
-          disabled={adding || !title.trim()}
+          disabled={create.isPending}
           size="md"
           aria-label="Agregar"
           className="shrink-0 px-3"
@@ -142,6 +141,11 @@ export function TaskPanel({
           <Plus className="h-5 w-5" strokeWidth={2.5} />
         </Button>
       </form>
+      {create.error && (
+        <p role="alert" className="mb-4 text-sm text-rose-700">
+          {readableError(create.error, "No se pudo agregar la tarea.")}
+        </p>
+      )}
 
       {tasks.length === 0 ? (
         <Empty
@@ -166,7 +170,7 @@ export function TaskPanel({
             >
               <button
                 type="button"
-                onClick={() => void toggle.mutateAsync({ id: t._id })}
+                onClick={() => toggle.mutate({ id: t._id })}
                 className={cn(
                   "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border transition",
                   t.done
@@ -187,7 +191,7 @@ export function TaskPanel({
               </span>
               <button
                 type="button"
-                onClick={() => void remove.mutateAsync({ id: t._id })}
+                onClick={() => remove.mutate({ id: t._id })}
                 className="rounded-xl p-2 text-stone-400 hover:bg-rose-50 hover:text-rose-600"
                 aria-label="Eliminar"
               >
