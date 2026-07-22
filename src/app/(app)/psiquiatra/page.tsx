@@ -1,58 +1,144 @@
 "use client";
 
 import { useMutation, useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
-import { Button, Card, Empty, Modal } from "@/components/ui";
-import { PatientPicker } from "@/components/PatientPicker";
-import { formatDateTime } from "@/lib/utils";
-import { Brain, CalendarPlus, UserPlus } from "lucide-react";
-import { IconBadge } from "@/components/Icons";
 import { useState } from "react";
+import {
+  Ban,
+  Brain,
+  CalendarPlus,
+  LockOpen,
+  Pencil,
+  UserPlus,
+  UserRoundPen,
+  UserRoundX,
+} from "lucide-react";
+import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
+import { AppointmentModal } from "@/components/AppointmentForm";
+import { IconBadge } from "@/components/Icons";
+import { PatientPicker } from "@/components/PatientPicker";
+import { Button, Card, Empty, Label, Modal } from "@/components/ui";
+import { formatDateTime } from "@/lib/utils";
+
+function errorMessage(error: unknown) {
+  const message =
+    error instanceof Error ? error.message : "No se pudo completar la acción";
+  return message.split("Uncaught Error: ").pop()?.split("\n")[0] ?? message;
+}
 
 export default function PsiquiatraPage() {
   const slots = useQuery(api.psychiatrist.listUpcoming) ?? [];
+  const types = useQuery(api.types.list);
   const ensure = useMutation(api.psychiatrist.ensureMonths);
   const assign = useMutation(api.psychiatrist.assignPatient);
+  const reassign = useMutation(api.psychiatrist.reassignPatient);
+  const release = useMutation(api.psychiatrist.release);
+  const block = useMutation(api.psychiatrist.block);
+  const unblock = useMutation(api.psychiatrist.unblock);
+  const psychiatristType = types?.find((type) => type.isPsychiatrist);
   const [busy, setBusy] = useState(false);
-  const [assignId, setAssignId] = useState<Id<"appointments"> | null>(null);
+  const [actionId, setActionId] = useState<Id<"psychiatristSlots"> | null>(null);
+  const [assignId, setAssignId] = useState<Id<"psychiatristSlots"> | null>(null);
   const [patientId, setPatientId] = useState<Id<"patients"> | undefined>();
+  const [editId, setEditId] = useState<Id<"appointments"> | null>(null);
   const [msg, setMsg] = useState("");
+  const [error, setError] = useState("");
+
+  const assignSlot = slots.find((slot) => slot._id === assignId);
+  const editAppointment = slots.find(
+    (slot) => slot.appointment?._id === editId,
+  )?.appointment;
 
   async function generate() {
     setBusy(true);
     setMsg("");
+    setError("");
     try {
-      const res = await ensure({ monthsAhead: 6 });
+      const result = await ensure({ monthsAhead: 6 });
       setMsg(
-        res.created === 0
-          ? "Los slots ya estaban generados."
-          : `Se crearon ${res.created} horarios libres.`,
+        result.created || result.updated || result.removed
+          ? `Horarios reconciliados: ${result.created} creados, ${result.updated} actualizados y ${result.removed} retirados.`
+          : result.skipped
+            ? `No hubo cambios; ${result.skipped} horarios se conservaron sin superponer turnos o bloqueos.`
+            : "Los horarios ya estaban actualizados.",
       );
+    } catch (caught) {
+      setError(errorMessage(caught));
     } finally {
       setBusy(false);
     }
   }
 
   async function handleAssign() {
-    if (!assignId || !patientId) return;
-    await assign({ appointmentId: assignId, patientId });
-    setAssignId(null);
-    setPatientId(undefined);
+    if (!assignSlot || !patientId) return;
+    setActionId(assignSlot._id);
+    setError("");
+    try {
+      if (assignSlot.state === "assigned") {
+        await reassign({ slotId: assignSlot._id, patientId });
+        setMsg("Paciente cambiado sin alterar el pago ni el recordatorio del turno.");
+      } else {
+        if (!psychiatristType) {
+          throw new Error("No existe un tipo de Psiquiatría configurado");
+        }
+        await assign({
+          slotId: assignSlot._id,
+          patientId,
+          typeId: psychiatristType._id,
+        });
+        setMsg("Turno de psiquiatría creado como confirmado y pago pendiente.");
+      }
+      setAssignId(null);
+      setPatientId(undefined);
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setActionId(null);
+    }
   }
 
-  const free = slots.filter((s) => !s.patientId).length;
-  const taken = slots.filter((s) => s.patientId).length;
+  async function runSlotAction(
+    slotId: Id<"psychiatristSlots">,
+    action: "release" | "block" | "unblock",
+  ) {
+    if (
+      action === "release" &&
+      !confirm("¿Liberar el horario? El turno se eliminará de forma recuperable.")
+    ) {
+      return;
+    }
+    setActionId(slotId);
+    setError("");
+    try {
+      if (action === "release") await release({ slotId });
+      if (action === "block") await block({ slotId });
+      if (action === "unblock") await unblock({ slotId });
+      setMsg(
+        action === "release"
+          ? "Horario liberado y turno retirado de la agenda."
+          : action === "block"
+            ? "Horario bloqueado."
+            : "Horario disponible nuevamente.",
+      );
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setActionId(null);
+    }
+  }
 
-  const byMonth = slots.reduce<Map<string, typeof slots>>((acc, s) => {
+  const free = slots.filter((slot) => slot.state === "available").length;
+  const taken = slots.filter((slot) => slot.state === "assigned").length;
+  const blocked = slots.filter((slot) => slot.state === "blocked").length;
+  const byMonth = slots.reduce<Map<string, typeof slots>>((acc, slot) => {
     const label = new Intl.DateTimeFormat("es-AR", {
       timeZone: "America/Argentina/Buenos_Aires",
       month: "long",
       year: "numeric",
-    }).format(new Date(s.startTime));
+    }).format(new Date(slot.startTime));
     const list = acc.get(label);
-    if (list) list.push(s);
-    else acc.set(label, [s]);
+    if (list) list.push(slot);
+    else acc.set(label, [slot]);
     return acc;
   }, new Map());
 
@@ -74,17 +160,30 @@ export default function PsiquiatraPage() {
         </div>
         <Button onClick={() => void generate()} disabled={busy}>
           <CalendarPlus className="h-4 w-4" />
-          {busy ? "Generando..." : "Generar próximos 6 meses"}
+          {busy ? "Reconciliando..." : "Actualizar próximos 6 meses"}
         </Button>
       </div>
 
+      <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-950">
+        La cantidad y duración se definen en Configuración. Al actualizarlas se
+        reorganizan únicamente horarios futuros libres; las asignaciones y los
+        bloqueos se conservan y nunca se crean superposiciones.
+      </p>
       {msg && (
         <p className="rounded-xl bg-teal-50 px-4 py-3 text-sm text-teal-900">
           {msg}
         </p>
       )}
+      {error && (
+        <p
+          role="alert"
+          className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-800"
+        >
+          {error}
+        </p>
+      )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-3">
         <Card className="p-4">
           <p className="text-xs uppercase text-stone-500">Libres</p>
           <p className="text-2xl font-semibold text-teal-800">{free}</p>
@@ -93,12 +192,16 @@ export default function PsiquiatraPage() {
           <p className="text-xs uppercase text-stone-500">Asignados</p>
           <p className="text-2xl font-semibold text-stone-900">{taken}</p>
         </Card>
+        <Card className="p-4">
+          <p className="text-xs uppercase text-stone-500">Bloqueados</p>
+          <p className="text-2xl font-semibold text-amber-800">{blocked}</p>
+        </Card>
       </div>
 
       {slots.length === 0 ? (
         <Empty
-          title="No hay turnos generados"
-          hint='Tocá "Generar próximos 6 meses" para crear los terceros viernes automáticamente'
+          title="No hay horarios generados"
+          hint='Tocá "Actualizar próximos 6 meses" para generar los terceros viernes'
         />
       ) : (
         <div className="space-y-5">
@@ -108,44 +211,124 @@ export default function PsiquiatraPage() {
                 {monthLabel}
               </h2>
               <ul className="space-y-2">
-                {monthSlots.map((s) => (
-                  <li
-                    key={s._id}
-                    className={`flex flex-col gap-2 rounded-2xl border bg-white px-4 py-3 transition sm:flex-row sm:items-center sm:justify-between ${
-                      s.patientId
-                        ? "border-teal-200 bg-teal-50/40"
-                        : "border-stone-200"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                          s.patientId ? "bg-teal-600" : "bg-stone-300"
-                        }`}
-                      />
-                      <div>
-                        <p className="font-semibold text-stone-900">
-                          {formatDateTime(s.startTime)}
-                        </p>
-                        <p className="text-sm text-stone-500">
-                          {s.patient
-                            ? s.patient.fullName
-                            : "Horario libre"}
-                        </p>
+                {monthSlots.map((slot) => {
+                  const isAssigned = slot.state === "assigned";
+                  const isBlocked = slot.state === "blocked";
+                  const rowBusy = actionId === slot._id;
+                  return (
+                    <li
+                      key={slot._id}
+                      className={`flex flex-col gap-3 rounded-2xl border px-4 py-3 transition sm:flex-row sm:items-center sm:justify-between ${
+                        isAssigned
+                          ? "border-teal-200 bg-teal-50/40"
+                          : isBlocked
+                            ? "border-amber-200 bg-amber-50/50"
+                            : "border-stone-200 bg-white"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                            isAssigned
+                              ? "bg-teal-600"
+                              : isBlocked
+                                ? "bg-amber-500"
+                                : "bg-stone-300"
+                          }`}
+                        />
+                        <div>
+                          <p className="font-semibold text-stone-900">
+                            {formatDateTime(slot.startTime)}
+                          </p>
+                          <p className="text-sm text-stone-500">
+                            {slot.patient?.fullName ??
+                              (isBlocked
+                                ? "Horario bloqueado"
+                                : isAssigned
+                                  ? "Asignación sin turno válido"
+                                  : "Horario libre")}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                    {!s.patientId && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setAssignId(s._id)}
-                      >
-                        <UserPlus className="h-4 w-4" />
-                        Asignar paciente
-                      </Button>
-                    )}
-                  </li>
-                ))}
+                      <div className="flex flex-wrap gap-2">
+                        {slot.state === "available" && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={rowBusy || !psychiatristType}
+                              onClick={() => setAssignId(slot._id)}
+                            >
+                              <UserPlus className="h-4 w-4" />
+                              Asignar
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={rowBusy}
+                              onClick={() =>
+                                void runSlotAction(slot._id, "block")
+                              }
+                            >
+                              <Ban className="h-4 w-4" />
+                              Bloquear
+                            </Button>
+                          </>
+                        )}
+                        {isBlocked && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={rowBusy}
+                            onClick={() =>
+                              void runSlotAction(slot._id, "unblock")
+                            }
+                          >
+                            <LockOpen className="h-4 w-4" />
+                            Desbloquear
+                          </Button>
+                        )}
+                        {isAssigned && (
+                          <>
+                            {slot.appointment && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setEditId(slot.appointment!._id)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                                Abrir turno
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={rowBusy || !slot.appointment}
+                              onClick={() => {
+                                setPatientId(slot.appointment?.patientId);
+                                setAssignId(slot._id);
+                              }}
+                            >
+                              <UserRoundPen className="h-4 w-4" />
+                              Cambiar paciente
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="danger"
+                              disabled={rowBusy}
+                              onClick={() =>
+                                void runSlotAction(slot._id, "release")
+                              }
+                            >
+                              <UserRoundX className="h-4 w-4" />
+                              Liberar
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           ))}
@@ -158,19 +341,50 @@ export default function PsiquiatraPage() {
           setAssignId(null);
           setPatientId(undefined);
         }}
-        title="Asignar paciente al turno"
+        title={
+          assignSlot?.state === "assigned"
+            ? "Cambiar paciente"
+            : "Asignar paciente"
+        }
       >
         <div className="space-y-4">
-          <PatientPicker value={patientId} onChange={(id) => setPatientId(id)} />
+          <div>
+            <Label id="psychiatry-patient-label">Paciente</Label>
+            <PatientPicker
+              id="psychiatry-patient"
+              aria-labelledby="psychiatry-patient-label"
+              value={patientId}
+              onChange={(id) => setPatientId(id)}
+            />
+          </div>
           <Button
             className="w-full"
-            disabled={!patientId}
+            disabled={!patientId || actionId === assignId}
             onClick={() => void handleAssign()}
           >
-            Confirmar asignación
+            {assignSlot?.state === "assigned"
+              ? "Guardar cambio"
+              : "Crear turno confirmado"}
           </Button>
+          {assignSlot?.state !== "assigned" && (
+            <p className="text-xs leading-relaxed text-stone-500">
+              Se crea un turno normal de Psiquiatría, con pago pendiente y sin
+              recordatorio. Podés activar el recordatorio al abrirlo.
+            </p>
+          )}
         </div>
       </Modal>
+
+      <AppointmentModal
+        open={Boolean(editAppointment)}
+        onClose={() => setEditId(null)}
+        title="Editar turno de psiquiatría"
+        initial={editAppointment ?? undefined}
+        onDone={() => {
+          setEditId(null);
+          setMsg("Turno actualizado.");
+        }}
+      />
     </div>
   );
 }

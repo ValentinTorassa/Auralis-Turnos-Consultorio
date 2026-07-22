@@ -2,17 +2,20 @@ import { internalAction } from "./_generated/server";
 import { createAccount } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 
-/** One-shot: create demo login. Safe to call multiple times. */
+/** One-shot account provisioning. Safe to call multiple times. */
 export const createDemoUser = internalAction({
   args: {
-    email: v.optional(v.string()),
-    password: v.optional(v.string()),
+    email: v.string(),
+    password: v.string(),
     name: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const email = (args.email ?? "demo@agenda.local").toLowerCase();
-    const password = args.password ?? "Agenda2026!";
-    const name = args.name ?? "Demo Consultorio";
+    const email = args.email.trim().toLowerCase();
+    const password = args.password;
+    const name = args.name?.trim() || "Consultorio";
+    if (!email) throw new Error("Email requerido");
+    if (password.length < 8)
+      throw new Error("La contraseña debe tener al menos 8 caracteres");
     try {
       const result = await createAccount(ctx, {
         provider: "password",

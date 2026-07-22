@@ -3,7 +3,10 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { TaskPanel } from "@/components/TaskPanel";
-import { AppointmentForm } from "@/components/AppointmentForm";
+import {
+  AppointmentModal,
+  AppointmentFormResult,
+} from "@/components/AppointmentForm";
 import { PatientPicker } from "@/components/PatientPicker";
 import {
   Badge,
@@ -22,6 +25,7 @@ import {
   formatTime,
   parseLocalDateTime,
   paymentLabel,
+  shouldShowPaymentAsDebt,
   todayKey,
   whatsappUrl,
 } from "@/lib/utils";
@@ -85,8 +89,9 @@ function NewReminderForm({ onDone }: { onDone: () => void }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <Label>Mensaje</Label>
+        <Label htmlFor="new-reminder-message">Mensaje</Label>
         <Textarea
+          id="new-reminder-message"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Ej. Confirmar turno, pedir informe..."
@@ -95,13 +100,19 @@ function NewReminderForm({ onDone }: { onDone: () => void }) {
         />
       </div>
       <div>
-        <Label>Paciente (opcional)</Label>
-        <PatientPicker value={patientId} onChange={(id) => setPatientId(id)} />
+        <Label id="new-reminder-patient-label">Paciente (opcional)</Label>
+        <PatientPicker
+          id="new-reminder-patient"
+          aria-labelledby="new-reminder-patient-label"
+          value={patientId}
+          onChange={(id) => setPatientId(id)}
+        />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label>Fecha</Label>
+          <Label htmlFor="new-reminder-date">Fecha</Label>
           <Input
+            id="new-reminder-date"
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
@@ -109,8 +120,9 @@ function NewReminderForm({ onDone }: { onDone: () => void }) {
           />
         </div>
         <div>
-          <Label>Hora</Label>
+          <Label htmlFor="new-reminder-time">Hora</Label>
           <Input
+            id="new-reminder-time"
             type="time"
             value={time}
             onChange={(e) => setTime(e.target.value)}
@@ -135,14 +147,23 @@ export default function HomePage() {
   const summary = useQuery(api.appointments.todaySummary, { date });
   const reminders = useQuery(api.reminders.pending) ?? [];
   const markDone = useMutation(api.reminders.markDone);
+  const closeout = useMutation(api.appointments.closeout);
+  const restoreAppointment = useMutation(api.appointments.restore);
   const [openNew, setOpenNew] = useState(false);
   const [openReminder, setOpenReminder] = useState(false);
   const [editId, setEditId] = useState<Id<"appointments"> | null>(null);
   const [taskDate, setTaskDate] = useState(() => todayKey());
+  const [deleted, setDeleted] = useState<Id<"appointments"> | null>(null);
 
   const appointments = useMemo(() => summary?.appointments ?? [], [summary]);
   const loading = summary === undefined;
-  const next = summary?.next;
+  const next =
+    now > 0
+      ? appointments.find(
+          (appointment) =>
+            appointment.endTime > now && appointment.status === "confirmed",
+        )
+      : summary?.next;
   const editAppt = useMemo(
     () => appointments.find((a) => a._id === editId),
     [appointments, editId],
@@ -157,10 +178,14 @@ export default function HomePage() {
     (a) => a.status === "completed",
   ).length;
   const pendingPayments = appointments.filter(
-    (a) =>
-      a.status !== "cancelled" &&
-      (a.paymentStatus === "unpaid" || a.paymentStatus === "owes"),
+    (a) => shouldShowPaymentAsDebt(a.status, a.paymentStatus),
   ).length;
+
+  function finishAppointment(result: AppointmentFormResult) {
+    setOpenNew(false);
+    setEditId(null);
+    if (result.deleted) setDeleted(result.id);
+  }
 
   return (
     <div className="anim-page space-y-5">
@@ -213,6 +238,22 @@ export default function HomePage() {
           </Link>
         </div>
       </section>
+
+      {deleted && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <span>Turno eliminado.</span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={async () => {
+              await restoreAppointment({ id: deleted });
+              setDeleted(null);
+            }}
+          >
+            Deshacer
+          </Button>
+        </div>
+      )}
 
       {next && (
         <Card className="overflow-hidden border-amber-200/80 bg-gradient-to-r from-amber-50 via-white to-teal-50/30">
@@ -280,9 +321,17 @@ export default function HomePage() {
                 const isNext = next?._id === a._id;
                 return (
                   <li key={a._id}>
-                    <button
-                      type="button"
+                    <div
+                      role="button"
+                      tabIndex={0}
                       onClick={() => setEditId(a._id)}
+                      onKeyDown={(event) => {
+                        if (event.target !== event.currentTarget) return;
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setEditId(a._id);
+                        }
+                      }}
                       className={`w-full rounded-3xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md ${
                         isNext
                           ? "border-amber-300 ring-2 ring-amber-200/80"
@@ -315,10 +364,14 @@ export default function HomePage() {
                           <p className="mt-1 truncate font-semibold text-stone-900">
                             {a.patient?.fullName || a.title || "Sin paciente"}
                           </p>
-                          <p className="text-xs text-stone-500">
-                            Hasta {formatTime(a.endTime)} · Pago:{" "}
-                            {paymentLabel(a.paymentStatus)}
-                          </p>
+                           <p className="text-xs text-stone-500">
+                             Hasta {formatTime(a.endTime)}
+                             {a.status === "completed"
+                               ? ` · Pago: ${paymentLabel(a.paymentStatus)}`
+                               : a.status === "confirmed"
+                                 ? " · Pago al cierre"
+                                 : ""}
+                           </p>
                           {a.notes && (
                             <p className="mt-1 line-clamp-2 text-sm text-stone-500">
                               {a.notes}
@@ -341,7 +394,52 @@ export default function HomePage() {
                           </a>
                         )}
                       </div>
-                    </button>
+                      {a.status === "confirmed" && (
+                        <div className="mt-3 flex flex-wrap gap-2 border-t border-stone-100 pt-3">
+                          <Button
+                            size="sm"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void closeout({ id: a._id, action: "completed_paid" });
+                            }}
+                          >
+                            {a.type?.tracksPayment === false ? "Realizado" : "Realizado + pagó"}
+                          </Button>
+                          {a.type?.tracksPayment !== false && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void closeout({ id: a._id, action: "completed_owes" });
+                              }}
+                            >
+                              Realizado + debe
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void closeout({ id: a._id, action: "no_show" });
+                            }}
+                          >
+                            Ausente
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void closeout({ id: a._id, action: "cancelled" });
+                            }}
+                          >
+                            Cancelar
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   </li>
                 );
               })}
@@ -393,7 +491,7 @@ export default function HomePage() {
                     <div className="mt-2 flex flex-wrap gap-2">
                       {r.patient?.phone && (
                         <a
-                          href={whatsappUrl(r.patient.phone, r.message)}
+                          href={whatsappUrl(r.patient.phone, r.patientMessage)}
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700"
@@ -419,14 +517,13 @@ export default function HomePage() {
         </div>
       </div>
 
-      <Modal
+      <AppointmentModal
         open={openNew}
         onClose={() => setOpenNew(false)}
         title="Nuevo turno"
-        wide
-      >
-        <AppointmentForm defaultDate={date} onDone={() => setOpenNew(false)} />
-      </Modal>
+        defaultDate={date}
+        onDone={finishAppointment}
+      />
 
       <Modal
         open={openReminder}
@@ -436,16 +533,13 @@ export default function HomePage() {
         <NewReminderForm onDone={() => setOpenReminder(false)} />
       </Modal>
 
-      <Modal
+      <AppointmentModal
         open={!!editAppt}
         onClose={() => setEditId(null)}
         title="Editar turno"
-        wide
-      >
-        {editAppt && (
-          <AppointmentForm initial={editAppt} onDone={() => setEditId(null)} />
-        )}
-      </Modal>
+        initial={editAppt}
+        onDone={finishAppointment}
+      />
     </div>
   );
 }

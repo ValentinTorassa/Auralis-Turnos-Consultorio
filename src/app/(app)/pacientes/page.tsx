@@ -65,7 +65,8 @@ function avatarColor(name: string): string {
 }
 
 export default function PacientesPage() {
-  const patientsQuery = useQuery(api.patients.list);
+  const [includeArchived, setIncludeArchived] = useState(false);
+  const patientsQuery = useQuery(api.patients.list, { includeArchived });
   const create = useMutation(api.patients.create);
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -75,19 +76,40 @@ export default function PacientesPage() {
   const [careType, setCareType] = useState("Consultorio");
   const [adminNotes, setAdminNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const duplicates = useQuery(
+    api.patients.duplicateCandidates,
+    open && fullName.trim()
+      ? { fullName, phone: phone || undefined }
+      : "skip",
+  );
 
   const loading = patientsQuery === undefined;
   const patients = useMemo(() => patientsQuery ?? [], [patientsQuery]);
 
   const filtered = useMemo(() => {
-    const term = q.trim().toLowerCase();
+    const term = q
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase();
+    const digits = q.replace(/\D/g, "");
     if (!term) return patients;
-    return patients.filter((p) => p.fullNameLower.includes(term));
+    return patients.filter(
+      (p) =>
+        p.fullName
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .includes(term) ||
+        (digits.length > 0 && p.phone?.replace(/\D/g, "").includes(digits)),
+    );
   }, [patients, q]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
+    setError("");
     try {
       await create({
         fullName,
@@ -102,6 +124,8 @@ export default function PacientesPage() {
       setBirthDate("");
       setCareType("Consultorio");
       setAdminNotes("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo crear");
     } finally {
       setSaving(false);
     }
@@ -123,17 +147,26 @@ export default function PacientesPage() {
             </p>
           </div>
         </div>
-        <Button onClick={() => setOpen(true)}>
-          <UserPlus className="h-4 w-4" />
-          Nuevo paciente
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setIncludeArchived((current) => !current)}
+          >
+            {includeArchived ? "Ocultar archivados" : "Ver archivados"}
+          </Button>
+          <Button onClick={() => setOpen(true)}>
+            <UserPlus className="h-4 w-4" />
+            Nuevo paciente
+          </Button>
+        </div>
       </div>
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-stone-400" />
         <Input
+          aria-label="Buscar pacientes"
           className="pl-10"
-          placeholder="Buscar por apellido o nombre..."
+          placeholder="Buscar por nombre o teléfono..."
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
@@ -164,8 +197,8 @@ export default function PacientesPage() {
                   {initials(p.fullName)}
                 </span>
                 <Link href={`/pacientes/${p._id}`} className="min-w-0 flex-1">
-                  <p className="truncate font-semibold text-stone-900">
-                    {p.fullName}
+                   <p className="truncate font-semibold text-stone-900">
+                    {p.fullName} {p.archivedAt ? "· Archivado" : ""}
                   </p>
                   <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-sm text-stone-500">
                     <span
@@ -200,17 +233,21 @@ export default function PacientesPage() {
       <Modal open={open} onClose={() => setOpen(false)} title="Nuevo paciente">
         <form onSubmit={handleCreate} className="space-y-4">
           <div>
-            <Label>Nombre y apellido</Label>
+            <Label htmlFor="new-patient-name">Nombre y apellido</Label>
             <Input
+              id="new-patient-name"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               required
               autoFocus
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? "new-patient-error" : undefined}
             />
           </div>
           <div>
-            <Label>Teléfono</Label>
+            <Label htmlFor="new-patient-phone">Teléfono</Label>
             <Input
+              id="new-patient-phone"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="341..."
@@ -218,16 +255,18 @@ export default function PacientesPage() {
             />
           </div>
           <div>
-            <Label>Fecha de nacimiento</Label>
+            <Label htmlFor="new-patient-birth-date">Fecha de nacimiento</Label>
             <Input
+              id="new-patient-birth-date"
               type="date"
               value={birthDate}
               onChange={(e) => setBirthDate(e.target.value)}
             />
           </div>
           <div>
-            <Label>Tipo de atención</Label>
+            <Label htmlFor="new-patient-care-type">Tipo de atención</Label>
             <Select
+              id="new-patient-care-type"
               value={careType}
               onChange={(e) => setCareType(e.target.value)}
             >
@@ -239,14 +278,32 @@ export default function PacientesPage() {
             </Select>
           </div>
           <div>
-            <Label>Observaciones administrativas</Label>
+            <Label htmlFor="new-patient-admin-notes">
+              Observaciones administrativas
+            </Label>
             <Textarea
+              id="new-patient-admin-notes"
               value={adminNotes}
               onChange={(e) => setAdminNotes(e.target.value)}
               placeholder="Obra social, datos útiles..."
             />
           </div>
-          <Button type="submit" className="w-full" disabled={saving}>
+          {(duplicates?.length ?? 0) > 0 && (
+            <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              Posible ficha duplicada: {duplicates?.map((p) => p.fullName).join(", ")}.
+              Revisala antes de crear otra.
+            </p>
+          )}
+          {error && (
+            <p id="new-patient-error" role="alert" className="text-sm text-rose-700">
+              {error}
+            </p>
+          )}
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={saving}
+          >
             {saving ? "Guardando..." : "Crear ficha"}
           </Button>
         </form>

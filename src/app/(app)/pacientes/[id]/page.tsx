@@ -10,7 +10,6 @@ import {
   Empty,
   Input,
   Label,
-  Modal,
   Select,
   Skeleton,
   Textarea,
@@ -31,7 +30,10 @@ import {
   Wallet,
   XCircle,
 } from "lucide-react";
-import { AppointmentForm } from "@/components/AppointmentForm";
+import {
+  AppointmentModal,
+  AppointmentFormResult,
+} from "@/components/AppointmentForm";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
@@ -67,8 +69,9 @@ function PatientForm({
   return (
     <form onSubmit={handleSave} className="space-y-4">
       <div>
-        <Label>Nombre y apellido</Label>
+        <Label htmlFor="patient-detail-name">Nombre y apellido</Label>
         <Input
+          id="patient-detail-name"
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
           required
@@ -76,12 +79,17 @@ function PatientForm({
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <Label>Teléfono</Label>
-          <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <Label htmlFor="patient-detail-phone">Teléfono</Label>
+          <Input
+            id="patient-detail-phone"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+          />
         </div>
         <div>
-          <Label>Nacimiento</Label>
+          <Label htmlFor="patient-detail-birth-date">Nacimiento</Label>
           <Input
+            id="patient-detail-birth-date"
             type="date"
             value={birthDate}
             onChange={(e) => setBirthDate(e.target.value)}
@@ -89,8 +97,12 @@ function PatientForm({
         </div>
       </div>
       <div>
-        <Label>Tipo de atención</Label>
-        <Select value={careType} onChange={(e) => setCareType(e.target.value)}>
+        <Label htmlFor="patient-detail-care-type">Tipo de atención</Label>
+        <Select
+          id="patient-detail-care-type"
+          value={careType}
+          onChange={(e) => setCareType(e.target.value)}
+        >
           {["Consultorio", "Pericia", "Psiquiatría", "Armas / CLU", "Otro"].map((t) => (
             <option key={t} value={t}>
               {t}
@@ -99,8 +111,11 @@ function PatientForm({
         </Select>
       </div>
       <div>
-        <Label>Observaciones administrativas</Label>
+        <Label htmlFor="patient-detail-admin-notes">
+          Observaciones administrativas
+        </Label>
         <Textarea
+          id="patient-detail-admin-notes"
           value={adminNotes}
           onChange={(e) => setAdminNotes(e.target.value)}
         />
@@ -122,6 +137,11 @@ export default function PacienteDetailPage() {
   const data = useQuery(api.patients.get, { id });
   const warnings = useQuery(api.patients.warnings, { patientId: id }) ?? [];
   const [openNew, setOpenNew] = useState(false);
+  const [editId, setEditId] = useState<Id<"appointments"> | null>(null);
+  const [deleted, setDeleted] = useState<AppointmentFormResult | null>(null);
+  const archive = useMutation(api.patients.archive);
+  const reactivate = useMutation(api.patients.reactivate);
+  const restoreAppointment = useMutation(api.appointments.restore);
 
   if (data === undefined) {
     return (
@@ -141,6 +161,13 @@ export default function PacienteDetailPage() {
   }
 
   const { patient, appointments, stats, nextAppointment } = data;
+  const editAppointment = appointments.find((appointment) => appointment._id === editId);
+
+  function handleAppointmentDone(result: AppointmentFormResult) {
+    setOpenNew(false);
+    setEditId(null);
+    if (result.deleted) setDeleted(result);
+  }
 
   return (
     <div className="anim-page space-y-5">
@@ -159,7 +186,7 @@ export default function PacienteDetailPage() {
           <p className="text-sm text-stone-500">{patient.careType}</p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => setOpenNew(true)}>
+          <Button onClick={() => setOpenNew(true)} disabled={Boolean(patient.archivedAt)}>
             <CalendarPlus className="h-4 w-4" />
             Turno
           </Button>
@@ -171,8 +198,38 @@ export default function PacienteDetailPage() {
               </Button>
             </a>
           )}
+          <Button
+            variant="outline"
+            onClick={() =>
+              void (patient.archivedAt ? reactivate({ id }) : archive({ id }))
+            }
+          >
+            {patient.archivedAt ? "Reactivar" : "Archivar"}
+          </Button>
         </div>
       </div>
+
+      {patient.archivedAt && (
+        <p className="rounded-2xl border border-stone-200 bg-stone-100 px-4 py-3 text-sm text-stone-700">
+          Esta ficha está archivada. Reactivala para asignarle nuevos turnos.
+        </p>
+      )}
+
+      {deleted && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <span>Turno eliminado.</span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={async () => {
+              await restoreAppointment({ id: deleted.id });
+              setDeleted(null);
+            }}
+          >
+            Deshacer
+          </Button>
+        </div>
+      )}
 
       <WarningBox items={warnings} />
 
@@ -238,35 +295,48 @@ export default function PacienteDetailPage() {
                 key={a._id}
                 className="rounded-2xl border border-stone-200 bg-white px-4 py-3"
               >
+                <button
+                  type="button"
+                  className="block w-full text-left transition hover:text-teal-800"
+                  onClick={() => setEditId(a._id)}
+                >
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium text-stone-900">
                     {formatDateTime(a.startTime)}
                   </span>
                   {a.type && <Badge color={a.type.color}>{a.type.name}</Badge>}
-                  <span className="text-xs text-stone-500">
-                    {statusLabel(a.status)} · {paymentLabel(a.paymentStatus)}
-                  </span>
+                   <span className="text-xs text-stone-500">
+                     {statusLabel(a.status)}
+                     {a.status === "completed"
+                       ? ` · ${paymentLabel(a.paymentStatus)}`
+                       : ""}
+                   </span>
                 </div>
                 {a.notes && (
                   <p className="mt-1 text-sm text-stone-500">{a.notes}</p>
                 )}
+                </button>
               </li>
             ))}
           </ul>
         )}
       </section>
 
-      <Modal
+      <AppointmentModal
         open={openNew}
         onClose={() => setOpenNew(false)}
         title={`Nuevo turno · ${patient.fullName}`}
-        wide
-      >
-        <AppointmentForm
-          defaultPatientId={id}
-          onDone={() => setOpenNew(false)}
-        />
-      </Modal>
+        defaultPatientId={id}
+        onDone={handleAppointmentDone}
+      />
+
+      <AppointmentModal
+        open={!!editAppointment}
+        onClose={() => setEditId(null)}
+        title="Editar turno"
+        initial={editAppointment}
+        onDone={handleAppointmentDone}
+      />
     </div>
   );
 }

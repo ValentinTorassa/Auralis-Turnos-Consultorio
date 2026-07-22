@@ -1,22 +1,30 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { DayTimeline } from "@/components/DayTimeline";
 import {
-  AppointmentForm,
+  AppointmentModal,
   AppointmentFormResult,
 } from "@/components/AppointmentForm";
 import { TaskPanel } from "@/components/TaskPanel";
-import { Button, Card, Empty, Modal } from "@/components/ui";
+import { Button, Card } from "@/components/ui";
 import {
   addDays,
+  addMonths,
+  dayKeyFromMs,
+  daysInMonth,
   formatDateLong,
+  formatMonthYear,
   formatTime,
+  formatWeekdayShort,
+  getCalendarRange,
   startOfWeek,
   todayKey,
   cn,
+  weekdayIndex,
 } from "@/lib/utils";
+import { eventOverlapsDay } from "@/lib/agenda";
 import {
   CalendarDays,
   CalendarPlus,
@@ -30,15 +38,6 @@ import { Id } from "../../../../convex/_generated/dataModel";
 
 type View = "day" | "week" | "month";
 
-function dayKeyFromMs(ms: number) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Argentina/Buenos_Aires",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(ms));
-}
-
 export default function AgendaPage() {
   const [view, setView] = useState<View>("day");
   const [cursor, setCursor] = useState(todayKey());
@@ -49,6 +48,7 @@ export default function AgendaPage() {
     null,
   );
   const [notice, setNotice] = useState<AppointmentFormResult | null>(null);
+  const restoreAppointment = useMutation(api.appointments.restore);
 
   const settings = useQuery(api.settings.get);
   const workStart = settings?.workDayStart ?? "08:00";
@@ -59,20 +59,10 @@ export default function AgendaPage() {
 
   const [year, month] = cursor.split("-").map(Number);
 
-  let rangeStart: number;
-  let rangeEnd: number;
-  if (view === "day") {
-    rangeStart = new Date(`${cursor}T00:00:00-03:00`).getTime();
-    rangeEnd = new Date(`${cursor}T23:59:59.999-03:00`).getTime();
-  } else if (view === "week") {
-    rangeStart = new Date(`${weekStart}T00:00:00-03:00`).getTime();
-    rangeEnd = new Date(
-      `${addDays(weekStart, 6)}T23:59:59.999-03:00`,
-    ).getTime();
-  } else {
-    rangeStart = new Date(year, month - 1, 1).getTime();
-    rangeEnd = new Date(year, month, 0, 23, 59, 59, 999).getTime();
-  }
+  const { startMs: rangeStart, endMs: rangeEnd } = getCalendarRange(
+    cursor,
+    view,
+  );
 
   const appointments =
     useQuery(api.appointments.byRange, {
@@ -81,7 +71,7 @@ export default function AgendaPage() {
     }) ?? [];
 
   const dayAppointments = appointments
-    .filter((a) => dayKeyFromMs(a.startTime) === cursor)
+    .filter((appointment) => eventOverlapsDay(appointment, cursor))
     .sort((a, b) => a.startTime - b.startTime);
 
   const editAppt = appointments.find((a) => a._id === editId);
@@ -95,8 +85,14 @@ export default function AgendaPage() {
     return () => window.clearTimeout(timeout);
   }, [notice]);
 
-  function handleCreated(result: AppointmentFormResult) {
+  function handleAppointmentDone(result: AppointmentFormResult) {
     setOpenNew(false);
+    setEditId(null);
+    if (result.deleted) {
+      setHighlightedId(null);
+      setNotice(result);
+      return;
+    }
     if (!result.created) return;
     setCursor(result.date);
     setView("day");
@@ -107,20 +103,16 @@ export default function AgendaPage() {
   function shift(dir: -1 | 1) {
     if (view === "day") setCursor(addDays(cursor, dir));
     else if (view === "week") setCursor(addDays(cursor, dir * 7));
-    else {
-      const d = new Date(year, month - 1 + dir, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
-      setCursor(key);
-    }
+    else setCursor(addMonths(cursor, dir));
   }
 
   // Month grid
-  const first = new Date(year, month - 1, 1);
-  const startPad = (first.getDay() + 6) % 7; // Monday=0
-  const daysInMonth = new Date(year, month, 0).getDate();
+  const monthStart = `${cursor.slice(0, 7)}-01`;
+  const startPad = (weekdayIndex(monthStart) + 6) % 7; // Monday=0
+  const monthDayCount = daysInMonth(monthStart);
   const monthCells: (string | null)[] = [
     ...Array.from({ length: startPad }, () => null),
-    ...Array.from({ length: daysInMonth }, (_, i) => {
+    ...Array.from({ length: monthDayCount }, (_, i) => {
       const d = i + 1;
       return `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
     }),
@@ -141,11 +133,7 @@ export default function AgendaPage() {
               {view === "day" && formatDateLong(cursor)}
               {view === "week" &&
                 `Semana del ${formatDateLong(weekStart).replace(/ de \d{4}$/, "")}`}
-              {view === "month" &&
-                new Intl.DateTimeFormat("es-AR", {
-                  month: "long",
-                  year: "numeric",
-                }).format(new Date(year, month - 1, 1))}
+              {view === "month" && formatMonthYear(cursor)}
             </p>
           </div>
         </div>
@@ -157,7 +145,7 @@ export default function AgendaPage() {
                 type="button"
                 onClick={() => setView(v)}
                 className={cn(
-                  "rounded-lg px-3 py-2 text-sm font-medium capitalize transition",
+                  "min-h-11 rounded-lg px-3 py-2 text-sm font-medium capitalize transition",
                   view === v
                     ? "bg-white text-stone-900 shadow-sm"
                     : "text-stone-500 hover:text-stone-700",
@@ -168,17 +156,28 @@ export default function AgendaPage() {
             ))}
           </div>
           <div className="flex items-center gap-1">
-            <Button variant="outline" size="sm" onClick={() => shift(-1)}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-11 min-w-11 px-2"
+              onClick={() => shift(-1)}
+            >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <Button
               variant="outline"
               size="sm"
+              className="h-11"
               onClick={() => setCursor(todayKey())}
             >
               Hoy
             </Button>
-            <Button variant="outline" size="sm" onClick={() => shift(1)}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-11 min-w-11 px-2"
+              onClick={() => shift(1)}
+            >
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
@@ -200,23 +199,40 @@ export default function AgendaPage() {
           className="flex items-start gap-2.5 rounded-2xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-900 shadow-sm"
         >
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-teal-700" />
-          <p>
-            <span className="font-semibold">Actividad creada:</span>{" "}
-            {notice.activity}, {formatDateLong(notice.date)} de{" "}
-            {formatTime(notice.startTime)} a {formatTime(notice.endTime)}
-            {dayKeyFromMs(notice.endTime) !== notice.date
-              ? " del día siguiente"
-              : ""}
-            .
-          </p>
+          {notice.deleted ? (
+            <div className="flex flex-1 items-center justify-between gap-3">
+              <p>Turno eliminado.</p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  await restoreAppointment({ id: notice.id });
+                  setNotice(null);
+                }}
+              >
+                Deshacer
+              </Button>
+            </div>
+          ) : (
+            <p>
+              <span className="font-semibold">Actividad creada:</span>{" "}
+              {notice.activity}, {formatDateLong(notice.date)} de{" "}
+              {formatTime(notice.startTime)} a {formatTime(notice.endTime)}
+              {dayKeyFromMs(notice.endTime) !== notice.date
+                ? " del día siguiente"
+                : ""}
+              .
+            </p>
+          )}
         </div>
       )}
 
       {view === "day" && (
         <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(19rem,1fr)]">
-          <div className="order-2 min-w-0 lg:order-1">
+          <div className="min-w-0">
             <DayTimeline
               appointments={dayAppointments}
+              date={cursor}
               workStart={workStart}
               workEnd={workEnd}
               isToday={cursor === todayKey()}
@@ -230,30 +246,30 @@ export default function AgendaPage() {
               }}
             />
           </div>
-          <div className="order-1 lg:sticky lg:top-36 lg:order-2">
+          <div className="lg:sticky lg:top-36">
             <TaskPanel date={cursor} onDateChange={setCursor} />
           </div>
         </div>
       )}
 
       {view === "week" && (
-        <div className="grid gap-2 sm:grid-cols-7">
+        <div className="grid snap-x snap-mandatory grid-flow-col auto-cols-[minmax(10rem,72vw)] gap-2 overflow-x-auto pb-2 sm:grid-flow-row sm:auto-cols-auto sm:grid-cols-4 sm:overflow-visible lg:grid-cols-7">
           {weekDays.map((d) => {
             const dayAppts = appointments
-              .filter((a) => dayKeyFromMs(a.startTime) === d)
+              .filter((appointment) => eventOverlapsDay(appointment, d))
               .sort((a, b) => a.startTime - b.startTime);
             const isToday = d === todayKey();
             return (
               <Card
                 key={d}
                 className={cn(
-                  "min-h-40 p-2 transition hover:border-teal-300",
+                  "min-h-40 snap-start p-2 transition hover:border-teal-300",
                   isToday && "border-amber-300 ring-1 ring-amber-200",
                 )}
               >
                 <button
                   type="button"
-                  className="mb-2 w-full text-left"
+                  className="mb-2 min-h-11 w-full rounded-lg text-left"
                   onClick={() => {
                     setCursor(d);
                     setView("day");
@@ -265,9 +281,7 @@ export default function AgendaPage() {
                       isToday ? "text-amber-700" : "text-stone-500",
                     )}
                   >
-                    {new Intl.DateTimeFormat("es-AR", {
-                      weekday: "short",
-                    }).format(new Date(`${d}T12:00:00-03:00`))}
+                    {formatWeekdayShort(d)}
                   </p>
                   <p className="text-lg font-semibold text-stone-900">
                     {d.slice(-2)}
@@ -279,7 +293,7 @@ export default function AgendaPage() {
                       key={a._id}
                       type="button"
                       onClick={() => setEditId(a._id)}
-                      className="block w-full truncate rounded-lg px-1.5 py-1 text-left text-[11px] font-medium text-stone-800 transition hover:brightness-95"
+                      className="block min-h-11 w-full truncate rounded-lg px-2 py-2 text-left text-xs font-medium text-stone-800 transition hover:brightness-95 sm:px-1.5 sm:text-[11px]"
                       style={{
                         backgroundColor: `${a.type?.color ?? "#94a3b8"}22`,
                         borderLeft: `3px solid ${a.type?.color ?? "#94a3b8"}`,
@@ -302,19 +316,23 @@ export default function AgendaPage() {
       )}
 
       {view === "month" && (
-        <Card className="p-3">
-          <div className="mb-2 grid grid-cols-7 gap-1 text-center text-xs font-semibold text-stone-500">
+        <Card className="overflow-x-auto p-2 sm:p-3">
+          <div className="mb-2 grid min-w-[22rem] grid-cols-7 gap-1 text-center text-xs font-semibold text-stone-500 sm:min-w-0">
             {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((d) => (
               <div key={d} className="py-1">
-                {d}
+                <span className="sm:hidden">{d.slice(0, 1)}</span>
+                <span className="hidden sm:inline">{d}</span>
               </div>
             ))}
           </div>
-          <div className="grid grid-cols-7 gap-1">
+          <div className="grid min-w-[22rem] grid-cols-7 gap-1 sm:min-w-0">
             {monthCells.map((d, i) => {
-              if (!d) return <div key={`e-${i}`} className="min-h-20" />;
-              const dayAppts = appointments.filter(
-                (a) => dayKeyFromMs(a.startTime) === d,
+              if (!d)
+                return (
+                  <div key={`e-${i}`} className="min-h-12 sm:min-h-20" />
+                );
+              const dayAppts = appointments.filter((appointment) =>
+                eventOverlapsDay(appointment, d),
               );
               const isToday = d === todayKey();
               return (
@@ -326,7 +344,7 @@ export default function AgendaPage() {
                     setView("day");
                   }}
                   className={cn(
-                    "min-h-20 rounded-xl border p-2 text-left transition hover:border-teal-300 hover:shadow-sm",
+                    "min-h-12 rounded-lg border p-1 text-left transition hover:border-teal-300 hover:shadow-sm sm:min-h-20 sm:rounded-xl sm:p-2",
                     isToday
                       ? "border-amber-300 bg-amber-50"
                       : "border-stone-100 bg-stone-50/50",
@@ -341,19 +359,19 @@ export default function AgendaPage() {
                     {Number(d.slice(-2))}
                   </span>
                   {dayAppts.length > 0 && (
-                    <div className="mt-2 space-y-1">
-                      <div className="flex flex-wrap gap-1">
-                        {dayAppts.slice(0, 5).map((a) => (
+                    <div className="mt-1 space-y-1 sm:mt-2">
+                      <div className="flex flex-wrap gap-0.5 sm:gap-1">
+                        {dayAppts.slice(0, 3).map((a) => (
                           <span
                             key={a._id}
-                            className="h-2 w-2 rounded-full"
+                            className="h-1.5 w-1.5 rounded-full sm:h-2 sm:w-2"
                             style={{
                               backgroundColor: a.type?.color ?? "#0f766e",
                             }}
                           />
                         ))}
                       </div>
-                      <p className="text-[10px] font-semibold text-stone-500">
+                      <p className="hidden text-[10px] font-semibold text-stone-500 sm:block">
                         {dayAppts.length} turno{dayAppts.length > 1 ? "s" : ""}
                       </p>
                     </div>
@@ -365,36 +383,22 @@ export default function AgendaPage() {
         </Card>
       )}
 
-      {view === "day" && dayAppointments.length === 0 && (
-        <Empty
-          title="Sin turnos este día"
-          hint="Tocá un horario libre o + Turno"
-        />
-      )}
-
-      <Modal
+      <AppointmentModal
         open={openNew}
         onClose={() => setOpenNew(false)}
         title="Nuevo turno"
-        wide
-      >
-        <AppointmentForm
-          defaultDate={cursor}
-          defaultTime={defaultTime}
-          onDone={handleCreated}
-        />
-      </Modal>
+        defaultDate={cursor}
+        defaultTime={defaultTime}
+        onDone={handleAppointmentDone}
+      />
 
-      <Modal
+      <AppointmentModal
         open={!!editAppt}
         onClose={() => setEditId(null)}
         title="Editar turno"
-        wide
-      >
-        {editAppt && (
-          <AppointmentForm initial={editAppt} onDone={() => setEditId(null)} />
-        )}
-      </Modal>
+        initial={editAppt}
+        onDone={handleAppointmentDone}
+      />
     </div>
   );
 }

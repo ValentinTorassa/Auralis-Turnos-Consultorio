@@ -1,27 +1,14 @@
-import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { requireUserId, thirdFridayOfMonth } from "./lib";
+import { mutation, query } from "./_generated/server";
+import { requireUserId } from "./lib";
+import {
+  assertPsychiatristSlotAssignable,
+  intervalsOverlap,
+  isLegacyPsychiatristPlaceholder,
+  reconcilePsychiatristMonths,
+} from "./psychiatristModel";
 
-function slotTimes(
-  year: number,
-  monthIndex: number,
-  count: number,
-  durationMin: number,
-): { start: number; end: number }[] {
-  const friday = thirdFridayOfMonth(year, monthIndex);
-  // 15:00 Argentina (UTC-3)
-  const y = friday.getFullYear();
-  const m = String(friday.getMonth() + 1).padStart(2, "0");
-  const d = String(friday.getDate()).padStart(2, "0");
-  const base = new Date(`${y}-${m}-${d}T15:00:00-03:00`).getTime();
-  const slots: { start: number; end: number }[] = [];
-  for (let i = 0; i < count; i++) {
-    const start = base + i * durationMin * 60 * 1000;
-    const end = start + durationMin * 60 * 1000;
-    slots.push({ start, end });
-  }
-  return slots;
-}
+const DEFAULT_MONTHS_AHEAD = 6;
 
 export const ensureMonths = mutation({
   args: { monthsAhead: v.optional(v.number()) },
@@ -31,69 +18,13 @@ export const ensureMonths = mutation({
       .query("settings")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .unique();
-    const count = settings?.psychiatristSlotCount ?? 6;
-    const duration = settings?.psychiatristSlotDurationMin ?? 30;
-    const monthsAhead = args.monthsAhead ?? 6;
-
-    const types = await ctx.db
-      .query("appointmentTypes")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .collect();
-    let psyType = types.find((t) => t.isPsychiatrist);
-    if (!psyType) {
-      const id = await ctx.db.insert("appointmentTypes", {
-        userId,
-        name: "Psiquiatría",
-        color: "#F59E0B",
-        isPsychiatrist: true,
-        sortOrder: 99,
-        code: "psiquiatria",
-        requiresPatient: true,
-        tracksPayment: true,
-        supportsReminder: true,
-        defaultDurationMin: 30,
-        isSystemType: true,
-      });
-      psyType = (await ctx.db.get(id))!;
-    }
-
-    const now = new Date();
-    let created = 0;
-    for (let i = 0; i < monthsAhead; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-      const year = d.getFullYear();
-      const monthIndex = d.getMonth();
-      const slots = slotTimes(year, monthIndex, count, duration);
-      for (const slot of slots) {
-        // skip past slots
-        if (slot.end < Date.now()) continue;
-        const existing = await ctx.db
-          .query("appointments")
-          .withIndex("by_user_psychiatrist", (q) =>
-            q
-              .eq("userId", userId)
-              .eq("isPsychiatrist", true)
-              .eq("startTime", slot.start),
-          )
-          .first();
-        if (existing) continue;
-        await ctx.db.insert("appointments", {
-          userId,
-          typeId: psyType._id,
-          title: "Turno psiquiatra (libre)",
-          startTime: slot.start,
-          endTime: slot.end,
-          status: "confirmed",
-          paymentStatus: "na",
-          isPsychiatrist: true,
-          reminderEnabled: false,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        });
-        created++;
-      }
-    }
-    return { created };
+    return reconcilePsychiatristMonths(
+      ctx,
+      userId,
+      settings?.psychiatristSlotCount ?? 6,
+      settings?.psychiatristSlotDurationMin ?? 30,
+      args.monthsAhead ?? DEFAULT_MONTHS_AHEAD,
+    );
   },
 });
 
@@ -101,45 +32,222 @@ export const listUpcoming = query({
   args: {},
   handler: async (ctx) => {
     const userId = await requireUserId(ctx);
-    const now = Date.now();
-    const rows = await ctx.db
-      .query("appointments")
-      .withIndex("by_user_psychiatrist", (q) =>
-        q.eq("userId", userId).eq("isPsychiatrist", true).gte("startTime", now),
+    const slots = await ctx.db
+      .query("psychiatristSlots")
+      .withIndex("by_user_start", (q) =>
+        q.eq("userId", userId).gte("startTime", Date.now()),
       )
-      .collect();
-    const sorted = rows
-      .filter((r) => r.status !== "cancelled")
-      .sort((a, b) => a.startTime - b.startTime)
-      .slice(0, 80);
+      .take(120);
 
-    const withPatients = await Promise.all(
-      sorted.map(async (r) => {
-        const patient = r.patientId ? await ctx.db.get(r.patientId) : null;
-        return { ...r, patient };
+    return Promise.all(
+      slots.map(async (slot) => {
+        const appointment = slot.appointmentId
+          ? await ctx.db.get(slot.appointmentId)
+          : null;
+        const validAppointment =
+          appointment &&
+          appointment.userId === userId &&
+          !appointment.deletedAt &&
+          appointment.isPsychiatrist
+            ? appointment
+            : null;
+        const patient = validAppointment?.patientId
+          ? await ctx.db.get(validAppointment.patientId)
+          : null;
+        return {
+          ...slot,
+          appointment: validAppointment,
+          patient: patient?.userId === userId ? patient : null,
+        };
       }),
     );
-    return withPatients;
   },
 });
 
 export const assignPatient = mutation({
   args: {
-    appointmentId: v.id("appointments"),
+    slotId: v.id("psychiatristSlots"),
+    patientId: v.id("patients"),
+    typeId: v.id("appointmentTypes"),
+  },
+  handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
+    const slot = await ctx.db.get(args.slotId);
+    if (!slot || slot.userId !== userId) throw new Error("Horario no válido");
+    assertPsychiatristSlotAssignable(slot);
+    if (slot.startTime < Date.now()) {
+      throw new Error("No se puede asignar un horario pasado");
+    }
+
+    const [patient, type] = await Promise.all([
+      ctx.db.get(args.patientId),
+      ctx.db.get(args.typeId),
+    ]);
+    if (!patient || patient.userId !== userId || patient.archivedAt) {
+      throw new Error("Paciente inválido o archivado");
+    }
+    if (!type || type.userId !== userId || !type.isPsychiatrist) {
+      throw new Error("Tipo de psiquiatría inválido");
+    }
+
+    const overlapping = await ctx.db
+      .query("appointments")
+      .withIndex("by_user_start", (q) =>
+        q.eq("userId", userId).lt("startTime", slot.endTime),
+      )
+      .filter((q) =>
+        q.and(
+          q.gt(q.field("endTime"), slot.startTime),
+          q.eq(q.field("deletedAt"), undefined),
+        ),
+      )
+      .collect();
+    if (
+      overlapping.some(
+        (appointment) =>
+          appointment.status !== "cancelled" &&
+          !isLegacyPsychiatristPlaceholder(appointment) &&
+          intervalsOverlap(appointment, slot),
+      )
+    ) {
+      throw new Error("El horario se superpone con otro turno");
+    }
+
+    const now = Date.now();
+    const appointmentId = await ctx.db.insert("appointments", {
+      userId,
+      patientId: patient._id,
+      typeId: type._id,
+      title: patient.fullName,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      status: "confirmed",
+      paymentStatus: "unpaid",
+      isPsychiatrist: true,
+      reminderEnabled: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await ctx.db.patch(slot._id, {
+      state: "assigned",
+      appointmentId,
+      updatedAt: now,
+    });
+    return appointmentId;
+  },
+});
+
+export const reassignPatient = mutation({
+  args: {
+    slotId: v.id("psychiatristSlots"),
     patientId: v.id("patients"),
   },
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx);
-    const appt = await ctx.db.get(args.appointmentId);
-    if (!appt || appt.userId !== userId || !appt.isPsychiatrist) {
-      throw new Error("Turno no válido");
+    const [slot, patient] = await Promise.all([
+      ctx.db.get(args.slotId),
+      ctx.db.get(args.patientId),
+    ]);
+    if (
+      !slot ||
+      slot.userId !== userId ||
+      slot.state !== "assigned" ||
+      !slot.appointmentId
+    ) {
+      throw new Error("Asignación no válida");
     }
-    const patient = await ctx.db.get(args.patientId);
-    if (!patient || patient.userId !== userId) throw new Error("Paciente inválido");
-    await ctx.db.patch(args.appointmentId, {
-      patientId: args.patientId,
+    if (!patient || patient.userId !== userId || patient.archivedAt) {
+      throw new Error("Paciente inválido o archivado");
+    }
+    const appointment = await ctx.db.get(slot.appointmentId);
+    const type = appointment ? await ctx.db.get(appointment.typeId) : null;
+    if (
+      !appointment ||
+      appointment.userId !== userId ||
+      appointment.deletedAt ||
+      !appointment.isPsychiatrist ||
+      !type ||
+      type.userId !== userId ||
+      !type.isPsychiatrist
+    ) {
+      throw new Error("Turno de psiquiatría no encontrado");
+    }
+    await ctx.db.patch(appointment._id, {
+      patientId: patient._id,
       title: patient.fullName,
       updatedAt: Date.now(),
     });
+    const reminders = await ctx.db
+      .query("reminders")
+      .withIndex("by_user_due", (q) => q.eq("userId", userId))
+      .filter((q) => q.eq(q.field("appointmentId"), appointment._id))
+      .collect();
+    for (const reminder of reminders) {
+      await ctx.db.patch(reminder._id, {
+        patientId: patient._id,
+        message: `Enviar recordatorio de asistencia a ${patient.fullName}.`,
+      });
+    }
+    return appointment._id;
+  },
+});
+
+export const release = mutation({
+  args: { slotId: v.id("psychiatristSlots") },
+  handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
+    const slot = await ctx.db.get(args.slotId);
+    if (!slot || slot.userId !== userId || slot.state !== "assigned") {
+      throw new Error("Asignación no válida");
+    }
+    const now = Date.now();
+    if (slot.appointmentId) {
+      const appointment = await ctx.db.get(slot.appointmentId);
+      if (appointment && appointment.userId === userId && !appointment.deletedAt) {
+        await ctx.db.patch(appointment._id, {
+          deletedAt: now,
+          reminderEnabled: false,
+          updatedAt: now,
+        });
+        const reminders = await ctx.db
+          .query("reminders")
+          .withIndex("by_user_active", (q) =>
+            q.eq("userId", userId).eq("active", true),
+          )
+          .filter((q) => q.eq(q.field("appointmentId"), appointment._id))
+          .collect();
+        for (const reminder of reminders) {
+          await ctx.db.patch(reminder._id, { active: false, done: true });
+        }
+      }
+    }
+    await ctx.db.patch(slot._id, {
+      state: "available",
+      appointmentId: undefined,
+      updatedAt: now,
+    });
+  },
+});
+
+export const block = mutation({
+  args: { slotId: v.id("psychiatristSlots") },
+  handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
+    const slot = await ctx.db.get(args.slotId);
+    if (!slot || slot.userId !== userId) throw new Error("Horario no válido");
+    assertPsychiatristSlotAssignable(slot);
+    await ctx.db.patch(slot._id, { state: "blocked", updatedAt: Date.now() });
+  },
+});
+
+export const unblock = mutation({
+  args: { slotId: v.id("psychiatristSlots") },
+  handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
+    const slot = await ctx.db.get(args.slotId);
+    if (!slot || slot.userId !== userId || slot.state !== "blocked") {
+      throw new Error("Horario bloqueado no válido");
+    }
+    await ctx.db.patch(slot._id, { state: "available", updatedAt: Date.now() });
   },
 });

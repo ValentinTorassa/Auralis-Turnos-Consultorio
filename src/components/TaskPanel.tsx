@@ -116,6 +116,7 @@ export function TaskPanel({
 
       <form onSubmit={addTask} className="mb-4 flex gap-2">
         <Input
+          aria-label="Nueva tarea"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder={

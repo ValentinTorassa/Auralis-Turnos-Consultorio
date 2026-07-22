@@ -24,22 +24,39 @@ export function dayKey(
   }).format(new Date(ms));
 }
 
+export function isValidDateKey(dateStr: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
+  const date = new Date(`${dateStr}T00:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === dateStr;
+}
+
 export function startOfDayMs(dateStr: string): number {
+  if (!isValidDateKey(dateStr)) throw new Error("Fecha inválida");
   // dateStr YYYY-MM-DD interpreted as Argentina midnight roughly via UTC-3
   return new Date(`${dateStr}T00:00:00-03:00`).getTime();
 }
 
 export function endOfDayMs(dateStr: string): number {
+  if (!isValidDateKey(dateStr)) throw new Error("Fecha inválida");
   return new Date(`${dateStr}T23:59:59.999-03:00`).getTime();
 }
 
 export function thirdFridayOfMonth(year: number, monthIndex: number): Date {
-  // monthIndex 0-based
+  if (
+    !Number.isInteger(year) ||
+    year < 2000 ||
+    year > 2100 ||
+    !Number.isInteger(monthIndex) ||
+    monthIndex < 0 ||
+    monthIndex > 11
+  ) {
+    throw new Error("Mes inválido");
+  }
   let count = 0;
   for (let day = 1; day <= 31; day++) {
-    const d = new Date(year, monthIndex, day);
-    if (d.getMonth() !== monthIndex) break;
-    if (d.getDay() === 5) {
+    const d = new Date(Date.UTC(year, monthIndex, day, 12));
+    if (d.getUTCMonth() !== monthIndex) break;
+    if (d.getUTCDay() === 5) {
       count++;
       if (count === 3) return d;
     }

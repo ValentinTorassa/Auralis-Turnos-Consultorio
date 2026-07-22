@@ -1,6 +1,12 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireUserId } from "./lib";
+import {
+  MAX_PSYCHIATRIST_SLOT_COUNT,
+  MAX_PSYCHIATRIST_SLOT_DURATION_MIN,
+  MIN_PSYCHIATRIST_SLOT_DURATION_MIN,
+  reconcilePsychiatristMonths,
+} from "./psychiatristModel";
 
 export const get = query({
   args: {},
@@ -47,9 +53,38 @@ export const update = mutation({
     }
     if (
       args.defaultDurationMin !== undefined &&
-      args.defaultDurationMin < 5
+      (!Number.isInteger(args.defaultDurationMin) ||
+        args.defaultDurationMin < 5 ||
+        args.defaultDurationMin > 24 * 60)
     ) {
-      throw new Error("La duración debe ser de al menos 5 minutos");
+      throw new Error("La duración debe estar entre 5 minutos y 24 horas");
+    }
+    if (
+      args.psychiatristSlotCount !== undefined &&
+      (!Number.isInteger(args.psychiatristSlotCount) ||
+        args.psychiatristSlotCount < 1 ||
+        args.psychiatristSlotCount > MAX_PSYCHIATRIST_SLOT_COUNT)
+    ) {
+      throw new Error(
+        `La cantidad de turnos debe estar entre 1 y ${MAX_PSYCHIATRIST_SLOT_COUNT}`,
+      );
+    }
+    if (
+      args.psychiatristSlotDurationMin !== undefined &&
+      (!Number.isInteger(args.psychiatristSlotDurationMin) ||
+        args.psychiatristSlotDurationMin < MIN_PSYCHIATRIST_SLOT_DURATION_MIN ||
+        args.psychiatristSlotDurationMin > MAX_PSYCHIATRIST_SLOT_DURATION_MIN)
+    ) {
+      throw new Error(
+        `La duración de turnos debe estar entre ${MIN_PSYCHIATRIST_SLOT_DURATION_MIN} y ${MAX_PSYCHIATRIST_SLOT_DURATION_MIN} minutos`,
+      );
+    }
+    const nextPsychiatristCount =
+      args.psychiatristSlotCount ?? existing.psychiatristSlotCount;
+    const nextPsychiatristDuration =
+      args.psychiatristSlotDurationMin ?? existing.psychiatristSlotDurationMin;
+    if (nextPsychiatristCount * nextPsychiatristDuration > 24 * 60) {
+      throw new Error("Los turnos de psiquiatría deben ocupar como máximo 24 horas");
     }
     const patch: Record<string, string | number | boolean> = {};
     if (args.workDayStart !== undefined) patch.workDayStart = args.workDayStart;
@@ -61,5 +96,18 @@ export const update = mutation({
     if (args.psychiatristSlotDurationMin !== undefined)
       patch.psychiatristSlotDurationMin = args.psychiatristSlotDurationMin;
     await ctx.db.patch(existing._id, patch);
+    if (
+      args.psychiatristSlotCount !== undefined ||
+      args.psychiatristSlotDurationMin !== undefined
+    ) {
+      return await reconcilePsychiatristMonths(
+        ctx,
+        userId,
+        nextPsychiatristCount,
+        nextPsychiatristDuration,
+        6,
+      );
+    }
+    return null;
   },
 });

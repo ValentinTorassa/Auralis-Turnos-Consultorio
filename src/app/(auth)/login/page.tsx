@@ -13,16 +13,12 @@ import {
   LogIn,
   Mail,
   Sparkles,
-  UserPlus,
-  UserRound,
 } from "lucide-react";
 
 export default function LoginPage() {
   const { signIn } = useAuthActions();
-  const [mode, setMode] = useState<"signIn" | "signUp">("signIn");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
@@ -35,17 +31,10 @@ export default function LoginPage() {
       const formData = new FormData();
       formData.set("email", email.trim());
       formData.set("password", password);
-      formData.set("flow", mode);
-      if (mode === "signUp" && name.trim()) {
-        formData.set("name", name.trim());
-      }
+      formData.set("flow", "signIn");
       await signIn("password", formData);
     } catch {
-      setError(
-        mode === "signIn"
-          ? "No se pudo iniciar sesión. Revisá email y contraseña."
-          : "No se pudo crear la cuenta. ¿El email ya está registrado?",
-      );
+      setError("No se pudo iniciar sesión. Revisá email y contraseña.");
     } finally {
       setLoading(false);
     }
@@ -73,54 +62,13 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <div className="mb-5 grid grid-cols-2 gap-1 rounded-2xl bg-stone-100/90 p-1 ring-1 ring-stone-200/60">
-            <button
-              type="button"
-              onClick={() => setMode("signIn")}
-              className={`inline-flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-semibold transition ${
-                mode === "signIn"
-                  ? "bg-white text-stone-900 shadow-sm"
-                  : "text-stone-500 hover:text-stone-700"
-              }`}
-            >
-              <LogIn className="h-4 w-4" />
-              Entrar
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("signUp")}
-              className={`inline-flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-semibold transition ${
-                mode === "signUp"
-                  ? "bg-white text-stone-900 shadow-sm"
-                  : "text-stone-500 hover:text-stone-700"
-              }`}
-            >
-              <UserPlus className="h-4 w-4" />
-              Crear cuenta
-            </button>
-          </div>
-
           <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === "signUp" && (
-              <div>
-                <Label>Nombre</Label>
-                <div className="relative">
-                  <UserRound className="pointer-events-none absolute left-3 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-stone-400" />
-                  <Input
-                    className="pl-10"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Tu nombre"
-                    autoComplete="name"
-                  />
-                </div>
-              </div>
-            )}
             <div>
-              <Label>Email</Label>
+              <Label htmlFor="login-email">Email</Label>
               <div className="relative">
                 <Mail className="pointer-events-none absolute left-3 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-stone-400" />
                 <Input
+                  id="login-email"
                   className="pl-10"
                   type="email"
                   value={email}
@@ -128,14 +76,17 @@ export default function LoginPage() {
                   placeholder="tu@email.com"
                   required
                   autoComplete="email"
+                  aria-invalid={Boolean(error)}
+                  aria-describedby={error ? "login-error" : undefined}
                 />
               </div>
             </div>
             <div>
-              <Label>Contraseña</Label>
+              <Label htmlFor="login-password">Contraseña</Label>
               <div className="relative">
                 <Lock className="pointer-events-none absolute left-3 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-stone-400" />
                 <Input
+                  id="login-password"
                   className="pl-10 pr-11"
                   type={showPass ? "text" : "password"}
                   value={password}
@@ -143,9 +94,9 @@ export default function LoginPage() {
                   placeholder="Mínimo 8 caracteres"
                   required
                   minLength={8}
-                  autoComplete={
-                    mode === "signIn" ? "current-password" : "new-password"
-                  }
+                  autoComplete="current-password"
+                  aria-invalid={Boolean(error)}
+                  aria-describedby={error ? "login-error" : undefined}
                 />
                 <button
                   type="button"
@@ -163,7 +114,11 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <p className="flex items-start gap-2 rounded-xl bg-rose-50 px-3 py-2.5 text-sm text-rose-700 ring-1 ring-rose-100">
+              <p
+                id="login-error"
+                role="alert"
+                className="flex items-start gap-2 rounded-xl bg-rose-50 px-3 py-2.5 text-sm text-rose-700 ring-1 ring-rose-100"
+              >
                 <KeyRound className="mt-0.5 h-4 w-4 shrink-0" />
                 {error}
               </p>
@@ -175,15 +130,10 @@ export default function LoginPage() {
                   <Loader2 className="h-5 w-5 animate-spin" />
                   Esperá...
                 </>
-              ) : mode === "signIn" ? (
+              ) : (
                 <>
                   <LogIn className="h-5 w-5" />
                   Ingresar
-                </>
-              ) : (
-                <>
-                  <UserPlus className="h-5 w-5" />
-                  Crear cuenta
                 </>
               )}
             </Button>

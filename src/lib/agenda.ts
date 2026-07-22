@@ -1,4 +1,36 @@
+import { getCalendarRange } from "./utils";
+
 export type TimelineSpan = { startMinute: number; endMinute: number };
+
+export type AgendaEventRange = { startTime: number; endTime: number };
+
+export function eventOverlapsRange(
+  event: AgendaEventRange,
+  rangeStart: number,
+  rangeEnd: number,
+): boolean {
+  return event.startTime < rangeEnd && event.endTime > rangeStart;
+}
+
+export function eventOverlapsDay(
+  event: AgendaEventRange,
+  date: string,
+): boolean {
+  const { startMs, endMs } = getCalendarRange(date, "day");
+  return eventOverlapsRange(event, startMs, endMs);
+}
+
+export function getEventSpanForDay(
+  event: AgendaEventRange,
+  date: string,
+): TimelineSpan | null {
+  const { startMs, endMs } = getCalendarRange(date, "day");
+  if (!eventOverlapsRange(event, startMs, endMs)) return null;
+  return {
+    startMinute: (Math.max(event.startTime, startMs) - startMs) / 60_000,
+    endMinute: (Math.min(event.endTime, endMs) - startMs) / 60_000,
+  };
+}
 
 export function timeStringToMinutes(value: string, fallback: number): number {
   const match = /^(\d{1,2}):(\d{2})$/.exec(value);

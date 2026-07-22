@@ -1,7 +1,11 @@
 "use client";
 
-import { formatTimelineMinute, getTimelineBounds } from "@/lib/agenda";
-import { formatTime, cn } from "@/lib/utils";
+import {
+  formatTimelineMinute,
+  getEventSpanForDay,
+  getTimelineBounds,
+} from "@/lib/agenda";
+import { cn, formatTime, getCalendarRange, minutesInDay } from "@/lib/utils";
 import { useNow } from "@/lib/useNow";
 import { Badge } from "./ui";
 import { useEffect, useRef } from "react";
@@ -18,20 +22,8 @@ type Appt = {
   patient?: { fullName: string } | null;
 };
 
-const HOUR_HEIGHT = 76;
+const HOUR_HEIGHT = 88;
 const PIXELS_PER_MINUTE = HOUR_HEIGHT / 60;
-
-function minutesInDay(ms: number): number {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "America/Argentina/Buenos_Aires",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).formatToParts(new Date(ms));
-  const h = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
-  const m = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
-  return h * 60 + m;
-}
 
 function layoutLanes(appointments: Appt[]) {
   const sorted = [...appointments].sort(
@@ -77,8 +69,10 @@ export function DayTimeline({
   workEnd = "20:00",
   isToday = false,
   highlightedId,
+  date,
 }: {
   appointments: Appt[];
+  date: string;
   onSelect: (id: string) => void;
   onSlotClick?: (hour: number, minute?: number) => void;
   workStart?: string;
@@ -90,14 +84,10 @@ export function DayTimeline({
   const nowLineRef = useRef<HTMLDivElement>(null);
   const highlightedRef = useRef<HTMLButtonElement>(null);
   const scrolledRef = useRef(false);
-  const eventSpans = appointments.map((appointment) => {
-    const startMinute = minutesInDay(appointment.startTime);
-    return {
-      startMinute,
-      endMinute:
-        startMinute +
-        Math.max(1, (appointment.endTime - appointment.startTime) / 60000),
-    };
+  const { startMs: dayStart, endMs: dayEnd } = getCalendarRange(date, "day");
+  const eventSpans = appointments.flatMap((appointment) => {
+    const span = getEventSpanForDay(appointment, date);
+    return span ? [span] : [];
   });
   const appointmentIds = appointments
     .map((appointment) => appointment._id)
@@ -225,13 +215,13 @@ export function DayTimeline({
         )}
 
         {placed.map(({ appt: appointment, lane, laneCount }) => {
-          const startMinute = minutesInDay(appointment.startTime);
-          const durationMinute = Math.max(
-            15,
-            (appointment.endTime - appointment.startTime) / 60000,
-          );
-          const top = toTop(startMinute);
-          const height = Math.max(38, durationMinute * PIXELS_PER_MINUTE);
+          const span = getEventSpanForDay(appointment, date);
+          if (!span) return null;
+          const startsBeforeDay = appointment.startTime < dayStart;
+          const endsAfterDay = appointment.endTime > dayEnd;
+          const durationMinute = Math.max(15, span.endMinute - span.startMinute);
+          const top = toTop(span.startMinute);
+          const height = Math.max(44, durationMinute * PIXELS_PER_MINUTE);
           const isPast = now > 0 && appointment.endTime < now;
           const isCurrent =
             now > 0 &&
@@ -278,7 +268,13 @@ export function DayTimeline({
                     {label}
                   </p>
                   <p className="truncate text-xs tabular-nums text-stone-600">
-                    {formatTime(appointment.startTime)} – {formatTime(appointment.endTime)}
+                    {startsBeforeDay
+                      ? "Continúa"
+                      : formatTime(appointment.startTime)}{" "}
+                    –{" "}
+                    {endsAfterDay
+                      ? "continúa"
+                      : formatTime(appointment.endTime)}
                     {appointment.type && laneCount === 1
                       ? ` · ${appointment.type.name}`
                       : ""}

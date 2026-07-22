@@ -41,6 +41,66 @@ button {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.safe-inline {
+  padding-left: max(1rem, env(safe-area-inset-left, 0px));
+  padding-right: max(1rem, env(safe-area-inset-right, 0px));
+}
+
+.safe-nav-inline {
+  padding-left: max(0.5rem, env(safe-area-inset-left, 0px));
+  padding-right: max(0.5rem, env(safe-area-inset-right, 0px));
+}
+
+@media (min-width: 640px) {
+  .safe-nav-inline {
+    padding-left: max(1rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
+  }
+}
+
+:where(
+  a[href],
+  button,
+  input,
+  select,
+  textarea,
+  [tabindex]:not([tabindex="-1"])
+):focus-visible {
+  outline: 3px solid #0d9488;
+  outline-offset: 3px;
+}
+
+.skip-link {
+  position: fixed;
+  top: max(0.5rem, env(safe-area-inset-top, 0px));
+  left: max(0.5rem, env(safe-area-inset-left, 0px));
+  z-index: 110;
+  transform: translateY(-200%);
+  border-radius: 0.75rem;
+  background: #0f766e;
+  padding: 0.75rem 1rem;
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 700;
+  box-shadow: 0 8px 24px rgb(28 25 23 / 0.2);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+html.privacy-mode [data-private-content],
+html.privacy-mode [data-modal-root] {
+  pointer-events: none;
+  user-select: none;
+  filter: blur(18px);
+  opacity: 0.08;
+}
+
 /* ---- Motion ---- */
 @keyframes fade-in {
   from {
@@ -117,10 +177,25 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+  }
+
   .anim-fade-in,
   .anim-page,
   .anim-sheet,
   .now-dot {
     animation: none;
+  }
+
+  .animate-pulse,
+  .animate-spin,
+  .animate-ping,
+  .animate-bounce {
+    animation: none !important;
   }
 }

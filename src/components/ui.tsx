@@ -4,10 +4,14 @@ import { cn } from "@/lib/utils";
 import {
   ButtonHTMLAttributes,
   InputHTMLAttributes,
+  LabelHTMLAttributes,
   ReactNode,
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
   useEffect,
+  useEffectEvent,
+  useId,
+  useRef,
 } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, Inbox, X } from "lucide-react";
@@ -24,8 +28,8 @@ export function Button({
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-2xl font-semibold transition active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none",
-        size === "sm" && "h-9 px-3 text-sm",
+        "inline-flex items-center justify-center gap-2 rounded-2xl font-semibold transition active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50",
+        size === "sm" && "h-11 px-3 text-sm sm:h-9",
         size === "md" && "h-11 px-4 text-sm",
         size === "lg" && "h-12 px-5 text-base",
         variant === "primary" &&
@@ -92,21 +96,17 @@ export function Select({
 }
 
 export function Label({
-  children,
   className,
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
+  ...props
+}: LabelHTMLAttributes<HTMLLabelElement>) {
   return (
     <label
       className={cn(
         "mb-1.5 block text-sm font-semibold text-stone-700",
         className,
       )}
-    >
-      {children}
-    </label>
+      {...props}
+    />
   );
 }
 
@@ -155,60 +155,186 @@ export function Modal({
   open,
   onClose,
   title,
+  description,
+  "aria-describedby": ariaDescribedBy,
+  onBeforeClose,
   children,
   wide,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
+  description?: ReactNode;
+  "aria-describedby"?: string;
+  /** Return false to keep a dirty modal open. */
+  onBeforeClose?: () => boolean | void;
   children: ReactNode;
   wide?: boolean;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
+  const titleId = useId();
+  const descriptionId = useId();
+
+  function requestClose() {
+    if (onBeforeClose?.() === false) return;
+    onClose();
+  }
+
+  const handleDocumentKeyDown = useEffectEvent((event: KeyboardEvent) => {
+    if (document.documentElement.dataset.privacyMode === "on") return;
+
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      requestClose();
+      return;
+    }
+
+    if (event.key !== "Tab") return;
+
+    const focusable = Array.from(
+      dialog.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter(
+      (element) =>
+        element.getClientRects().length > 0 &&
+        element.getAttribute("aria-hidden") !== "true",
+    );
+
+    if (focusable.length === 0) {
+      event.preventDefault();
+      dialog.focus();
+      return;
+    }
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const activeElement = document.activeElement;
+
+    if (event.shiftKey && (activeElement === first || activeElement === dialog)) {
+      event.preventDefault();
+      last.focus();
+    } else if (
+      !event.shiftKey &&
+      (activeElement === last || !dialog.contains(activeElement))
+    ) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
+
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKey);
+
+    const dialog = dialogRef.current;
+    const modalRoot = dialog?.closest<HTMLElement>("[data-modal-root]");
+    if (!dialog || !modalRoot) return;
+
+    triggerRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+
+    const backgroundStates = Array.from(document.body.children)
+      .filter(
+        (element): element is HTMLElement =>
+          element instanceof HTMLElement &&
+          element !== modalRoot &&
+          !element.matches("[data-privacy-exempt]"),
+      )
+      .map((element) => ({
+        element,
+        inert: element.inert,
+        ariaHidden: element.getAttribute("aria-hidden"),
+      }));
+
+    backgroundStates.forEach(({ element }) => {
+      element.inert = true;
+      element.setAttribute("aria-hidden", "true");
+    });
+
+    document.addEventListener("keydown", handleDocumentKeyDown, true);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+
+    const frame = window.requestAnimationFrame(() => dialog.focus());
+
     return () => {
-      document.removeEventListener("keydown", onKey);
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener("keydown", handleDocumentKeyDown, true);
       document.body.style.overflow = prevOverflow;
+      backgroundStates.forEach(({ element, inert, ariaHidden }) => {
+        if (!element.isConnected) return;
+        element.inert = inert;
+        if (ariaHidden === null) element.removeAttribute("aria-hidden");
+        else element.setAttribute("aria-hidden", ariaHidden);
+      });
+
+      if (
+        document.documentElement.dataset.privacyMode !== "on" &&
+        triggerRef.current?.isConnected
+      ) {
+        triggerRef.current.focus();
+      }
+      triggerRef.current = null;
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open || typeof document === "undefined") return null;
   // Portal: un ancestro con transform (p. ej. .anim-page) convierte a
   // position:fixed en relativo a ese ancestro; montado en <body> el modal
   // siempre cubre el viewport completo, incluida la barra de navegación.
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div
+      data-modal-root
+      className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
+    >
       <button
         type="button"
         className="anim-fade-in absolute inset-0 bg-stone-900/45 backdrop-blur-[3px]"
-        onClick={onClose}
-        aria-label="Cerrar"
+        onClick={requestClose}
+        tabIndex={-1}
+        aria-hidden="true"
       />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-labelledby={titleId}
+        aria-describedby={
+          ariaDescribedBy ?? (description ? descriptionId : undefined)
+        }
+        tabIndex={-1}
         className={cn(
-          "anim-sheet relative z-10 w-full max-h-[92dvh] overflow-y-auto rounded-t-[1.75rem] sm:rounded-3xl bg-white shadow-2xl shadow-stone-900/25",
+          "anim-sheet relative z-10 max-h-[92dvh] w-full overflow-y-auto rounded-t-[1.75rem] bg-white shadow-2xl shadow-stone-900/25 sm:rounded-3xl",
           wide ? "max-w-2xl" : "max-w-lg",
         )}
       >
         <div className="sticky top-0 z-10 border-b border-stone-100 bg-white/95 backdrop-blur">
           <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-stone-200 sm:hidden" />
           <div className="flex items-center justify-between px-5 py-3.5 sm:py-4">
-            <h2 className="text-lg font-semibold tracking-tight text-stone-900">
-              {title}
-            </h2>
+            <div>
+              <h2
+                id={titleId}
+                className="text-lg font-semibold tracking-tight text-stone-900"
+              >
+                {title}
+              </h2>
+              {description && (
+                <p id={descriptionId} className="mt-1 text-sm text-stone-600">
+                  {description}
+                </p>
+              )}
+            </div>
             <button
               type="button"
-              onClick={onClose}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-stone-500 transition hover:bg-stone-100 hover:text-stone-800"
+              onClick={requestClose}
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-stone-500 transition hover:bg-stone-100 hover:text-stone-800"
               aria-label="Cerrar"
             >
               <X className="h-5 w-5" />
@@ -237,14 +363,18 @@ export function Segmented<T extends string>({
   onChange,
   options,
   className,
+  "aria-labelledby": ariaLabelledBy,
 }: {
   value: T;
   onChange: (v: T) => void;
   options: { value: T; label: ReactNode; activeClass?: string }[];
   className?: string;
+  "aria-labelledby": string;
 }) {
   return (
     <div
+      role="group"
+      aria-labelledby={ariaLabelledBy}
       className={cn(
         "flex w-full gap-1 rounded-2xl bg-stone-100/90 p-1 ring-1 ring-stone-200/60",
         className,
@@ -255,8 +385,9 @@ export function Segmented<T extends string>({
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
+          aria-pressed={value === o.value}
           className={cn(
-            "flex-1 whitespace-nowrap rounded-xl px-1.5 py-2 text-xs font-semibold transition sm:px-2 sm:text-sm",
+            "min-h-11 flex-1 whitespace-nowrap rounded-xl px-1.5 py-2 text-xs font-semibold transition sm:px-2 sm:text-sm",
             value === o.value
               ? cn("bg-white text-stone-900 shadow-sm", o.activeClass)
               : "text-stone-500 hover:text-stone-700",

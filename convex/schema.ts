@@ -27,6 +27,7 @@ export default defineSchema({
     birthDate: v.optional(v.string()),
     careType: v.string(),
     adminNotes: v.optional(v.string()),
+    archivedAt: v.optional(v.number()),
     createdAt: v.number(),
   })
     .index("by_user", ["userId"])
@@ -53,9 +54,13 @@ export default defineSchema({
     ),
     paymentMethod: v.optional(v.string()),
     paymentNotes: v.optional(v.string()),
+    paidAt: v.optional(v.number()),
     notes: v.optional(v.string()),
     isPsychiatrist: v.boolean(),
     reminderEnabled: v.boolean(),
+    seriesId: v.optional(v.string()),
+    occurrenceIndex: v.optional(v.number()),
+    deletedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -63,6 +68,26 @@ export default defineSchema({
     .index("by_user_start", ["userId", "startTime"])
     .index("by_patient", ["patientId"])
     .index("by_user_psychiatrist", ["userId", "isPsychiatrist", "startTime"]),
+
+  psychiatristSlots: defineTable({
+    userId: v.id("users"),
+    startTime: v.number(),
+    endTime: v.number(),
+    state: v.union(
+      v.literal("available"),
+      v.literal("assigned"),
+      v.literal("blocked"),
+    ),
+    appointmentId: v.optional(v.id("appointments")),
+    generationKey: v.string(),
+    monthKey: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user_start", ["userId", "startTime"])
+    .index("by_user_month", ["userId", "monthKey", "startTime"])
+    .index("by_user_generation", ["userId", "generationKey"])
+    .index("by_user_appointment", ["userId", "appointmentId"]),
 
   dailyTasks: defineTable({
     userId: v.id("users"),
@@ -97,4 +122,10 @@ export default defineSchema({
     psychiatristSlotDurationMin: v.number(),
     seeded: v.boolean(),
   }).index("by_user", ["userId"]),
+
+  backupImports: defineTable({
+    userId: v.id("users"),
+    snapshotId: v.string(),
+    importedAt: v.number(),
+  }).index("by_user_snapshot", ["userId", "snapshotId"]),
 });
