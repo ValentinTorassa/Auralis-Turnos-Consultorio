@@ -30,12 +30,14 @@ import {
   AppointmentModal,
   AppointmentFormResult,
 } from "@/components/AppointmentForm";
+import { ActionError } from "@/components/ActionError";
 import Link from "next/link";
 import { useState } from "react";
+import { readableError } from "@/lib/form-state";
 import { PatientForm } from "./PatientForm";
 
-export function PatientDetailClient({ id: rawId }: { id: string }) {
-  const id = rawId as Id<"patients">;
+export function PatientDetailClient({ id }: { id: string }) {
+  // Backend accepts plain strings and normalizes/validates ownership.
   const { data } = useQuery(convexQuery(api.patients.get, { id }));
   const { data: warnings = [] } = useQuery(
     convexQuery(api.patients.warnings, { patientId: id }),
@@ -43,6 +45,7 @@ export function PatientDetailClient({ id: rawId }: { id: string }) {
   const [openNew, setOpenNew] = useState(false);
   const [editId, setEditId] = useState<Id<"appointments"> | null>(null);
   const [deleted, setDeleted] = useState<AppointmentFormResult | null>(null);
+  const [actionError, setActionError] = useState("");
   const archive = useMutation({
     mutationFn: useConvexMutation(api.patients.archive),
   });
@@ -52,6 +55,19 @@ export function PatientDetailClient({ id: rawId }: { id: string }) {
   const restoreAppointment = useMutation({
     mutationFn: useConvexMutation(api.appointments.restore),
   });
+  const archiveBusy = archive.isPending || reactivate.isPending;
+
+  async function runPatientAction(
+    action: () => Promise<unknown>,
+    fallback: string,
+  ) {
+    setActionError("");
+    try {
+      await action();
+    } catch (error) {
+      setActionError(readableError(error, fallback));
+    }
+  }
 
   if (data === undefined) {
     return (
@@ -110,15 +126,25 @@ export function PatientDetailClient({ id: rawId }: { id: string }) {
           )}
           <Button
             variant="outline"
-            onClick={() => {
-              if (patient.archivedAt) reactivate.mutate({ id });
-              else archive.mutate({ id });
-            }}
+            disabled={archiveBusy}
+            onClick={() =>
+              void runPatientAction(
+                () =>
+                  patient.archivedAt
+                    ? reactivate.mutateAsync({ id: patient._id })
+                    : archive.mutateAsync({ id: patient._id }),
+                patient.archivedAt
+                  ? "No se pudo reactivar la ficha."
+                  : "No se pudo archivar la ficha.",
+              )
+            }
           >
             {patient.archivedAt ? "Reactivar" : "Archivar"}
           </Button>
         </div>
       </div>
+
+      <ActionError message={actionError} onDismiss={() => setActionError("")} />
 
       {patient.archivedAt && (
         <p className="rounded-2xl border border-stone-200 bg-stone-100 px-4 py-3 text-sm text-stone-700">
@@ -132,10 +158,13 @@ export function PatientDetailClient({ id: rawId }: { id: string }) {
           <Button
             size="sm"
             variant="outline"
-            onClick={async () => {
-              await restoreAppointment.mutateAsync({ id: deleted.id });
-              setDeleted(null);
-            }}
+            disabled={restoreAppointment.isPending}
+            onClick={() =>
+              void runPatientAction(async () => {
+                await restoreAppointment.mutateAsync({ id: deleted.id });
+                setDeleted(null);
+              }, "No se pudo restaurar el turno.")
+            }
           >
             Deshacer
           </Button>
@@ -237,7 +266,7 @@ export function PatientDetailClient({ id: rawId }: { id: string }) {
         open={openNew}
         onClose={() => setOpenNew(false)}
         title={`Nuevo turno · ${patient.fullName}`}
-        defaultPatientId={id}
+        defaultPatientId={patient._id}
         onDone={handleAppointmentDone}
       />
 

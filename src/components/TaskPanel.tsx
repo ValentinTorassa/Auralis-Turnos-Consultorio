@@ -14,7 +14,9 @@ import {
   Trash2,
 } from "lucide-react";
 import { addDays, cn } from "@/lib/utils";
+import { ActionError } from "@/components/ActionError";
 import { DatePicker } from "@/components/ui/date-picker";
+import { useState } from "react";
 import { readableError } from "@/lib/form-state";
 
 function shortLabel(date: string): string {
@@ -46,7 +48,21 @@ export function TaskPanel({
   const remove = useMutation({
     mutationFn: useConvexMutation(api.tasks.remove),
   });
+  const [actionError, setActionError] = useState("");
   const isToday = Boolean(today) && date === today;
+  const listBusy = toggle.isPending || remove.isPending;
+
+  async function runTaskAction(
+    action: () => Promise<unknown>,
+    fallback: string,
+  ) {
+    setActionError("");
+    try {
+      await action();
+    } catch (error) {
+      setActionError(readableError(error, fallback));
+    }
+  }
 
   async function addTask(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -146,6 +162,14 @@ export function TaskPanel({
           {readableError(create.error, "No se pudo agregar la tarea.")}
         </p>
       )}
+      {actionError ? (
+        <div className="mb-4">
+          <ActionError
+            message={actionError}
+            onDismiss={() => setActionError("")}
+          />
+        </div>
+      ) : null}
 
       {tasks.length === 0 ? (
         <Empty
@@ -170,9 +194,15 @@ export function TaskPanel({
             >
               <button
                 type="button"
-                onClick={() => toggle.mutate({ id: t._id })}
+                disabled={listBusy}
+                onClick={() =>
+                  void runTaskAction(
+                    () => toggle.mutateAsync({ id: t._id }),
+                    "No se pudo actualizar la tarea.",
+                  )
+                }
                 className={cn(
-                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border transition",
+                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border transition disabled:opacity-50",
                   t.done
                     ? "border-teal-600 bg-teal-600 text-white shadow-sm shadow-teal-700/20"
                     : "border-stone-300 bg-white text-transparent hover:border-teal-500 hover:bg-teal-50",
@@ -191,8 +221,14 @@ export function TaskPanel({
               </span>
               <button
                 type="button"
-                onClick={() => remove.mutate({ id: t._id })}
-                className="rounded-xl p-2 text-stone-400 hover:bg-rose-50 hover:text-rose-600"
+                disabled={listBusy}
+                onClick={() =>
+                  void runTaskAction(
+                    () => remove.mutateAsync({ id: t._id }),
+                    "No se pudo eliminar la tarea.",
+                  )
+                }
+                className="rounded-xl p-2 text-stone-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
                 aria-label="Eliminar"
               >
                 <Trash2 className="h-4 w-4" />

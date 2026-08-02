@@ -9,6 +9,7 @@ import { cn, formatTime, getCalendarRange, minutesInDay } from "@/lib/utils";
 import { useNow } from "@/lib/useNow";
 import { Badge } from "@/components/ui";
 import { useEffect, useRef } from "react";
+import type { Id } from "../../../../../convex/_generated/dataModel";
 import { layoutTimelineLanes, TimelineAppointment } from "./helpers";
 
 const HOUR_HEIGHT = 88;
@@ -26,12 +27,12 @@ export function DayTimeline({
 }: {
   appointments: TimelineAppointment[];
   date: string;
-  onSelect: (id: string) => void;
+  onSelect: (id: Id<"appointments">) => void;
   onSlotClick?: (hour: number, minute?: number) => void;
   workStart?: string;
   workEnd?: string;
   isToday?: boolean;
-  highlightedId?: string | null;
+  highlightedId?: Id<"appointments"> | null;
 }) {
   const now = useNow();
   const nowLineRef = useRef<HTMLDivElement>(null);

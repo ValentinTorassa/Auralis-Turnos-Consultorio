@@ -43,9 +43,11 @@ import {
 import { useMemo, useState } from "react";
 import { Id } from "../../../../convex/_generated/dataModel";
 import Link from "next/link";
+import { ActionError } from "@/components/ActionError";
 import { buttonVariants } from "@/components/ui/button";
 import { useQueryState } from "nuqs";
 import { homeTaskSearchParams } from "@/lib/search-params";
+import { readableError } from "@/lib/form-state";
 import { greeting } from "./helpers";
 import { NewReminderForm } from "./NewReminderForm";
 
@@ -80,6 +82,19 @@ export function HomeClient() {
   );
   const taskDate = taskDateParam || date;
   const [deleted, setDeleted] = useState<Id<"appointments"> | null>(null);
+  const [actionError, setActionError] = useState("");
+
+  async function runHomeAction(
+    action: () => Promise<unknown>,
+    fallback: string,
+  ) {
+    setActionError("");
+    try {
+      await action();
+    } catch (error) {
+      setActionError(readableError(error, fallback));
+    }
+  }
 
   const appointments = useMemo(() => summary?.appointments ?? [], [summary]);
   const loading = summary === undefined;
@@ -173,16 +188,21 @@ export function HomeClient() {
         </div>
       </section>
 
+      <ActionError message={actionError} onDismiss={() => setActionError("")} />
+
       {deleted && (
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <span>Turno eliminado.</span>
           <Button
             size="sm"
             variant="outline"
-            onClick={async () => {
-              await restoreAppointment.mutateAsync({ id: deleted });
-              setDeleted(null);
-            }}
+            disabled={restoreAppointment.isPending}
+            onClick={() =>
+              void runHomeAction(async () => {
+                await restoreAppointment.mutateAsync({ id: deleted });
+                setDeleted(null);
+              }, "No se pudo restaurar el turno.")
+            }
           >
             Deshacer
           </Button>
@@ -339,10 +359,14 @@ export function HomeClient() {
                             disabled={closeout.isPending}
                             onClick={(event) => {
                               event.stopPropagation();
-                              void closeout.mutateAsync({
-                                id: a._id,
-                                action: "completed_paid",
-                              });
+                              void runHomeAction(
+                                () =>
+                                  closeout.mutateAsync({
+                                    id: a._id,
+                                    action: "completed_paid",
+                                  }),
+                                "No se pudo cerrar el turno.",
+                              );
                             }}
                           >
                             {a.type?.tracksPayment === false ? "Realizado" : "Realizado + pagó"}
@@ -354,10 +378,14 @@ export function HomeClient() {
                               disabled={closeout.isPending}
                               onClick={(event) => {
                                 event.stopPropagation();
-                                void closeout.mutateAsync({
-                                  id: a._id,
-                                  action: "completed_owes",
-                                });
+                                void runHomeAction(
+                                  () =>
+                                    closeout.mutateAsync({
+                                      id: a._id,
+                                      action: "completed_owes",
+                                    }),
+                                  "No se pudo cerrar el turno.",
+                                );
                               }}
                             >
                               Realizado + debe
@@ -369,10 +397,14 @@ export function HomeClient() {
                             disabled={closeout.isPending}
                             onClick={(event) => {
                               event.stopPropagation();
-                              void closeout.mutateAsync({
-                                id: a._id,
-                                action: "no_show",
-                              });
+                              void runHomeAction(
+                                () =>
+                                  closeout.mutateAsync({
+                                    id: a._id,
+                                    action: "no_show",
+                                  }),
+                                "No se pudo marcar la ausencia.",
+                              );
                             }}
                           >
                             Ausente
@@ -383,10 +415,14 @@ export function HomeClient() {
                             disabled={closeout.isPending}
                             onClick={(event) => {
                               event.stopPropagation();
-                              void closeout.mutateAsync({
-                                id: a._id,
-                                action: "cancelled",
-                              });
+                              void runHomeAction(
+                                () =>
+                                  closeout.mutateAsync({
+                                    id: a._id,
+                                    action: "cancelled",
+                                  }),
+                                "No se pudo cancelar el turno.",
+                              );
                             }}
                           >
                             Cancelar
@@ -462,8 +498,14 @@ export function HomeClient() {
                       )}
                       <button
                         type="button"
-                        onClick={() => markDone.mutate({ id: r._id })}
-                        className="inline-flex items-center gap-1 rounded-xl border border-stone-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-stone-700 transition hover:bg-stone-50"
+                        disabled={markDone.isPending}
+                        onClick={() =>
+                          void runHomeAction(
+                            () => markDone.mutateAsync({ id: r._id }),
+                            "No se pudo marcar el aviso como hecho.",
+                          )
+                        }
+                        className="inline-flex items-center gap-1 rounded-xl border border-stone-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-stone-700 transition hover:bg-stone-50 disabled:opacity-50"
                       >
                         <CheckCircle2 className="h-3.5 w-3.5 text-teal-600" />
                         Hecho

@@ -403,7 +403,7 @@ export function AppointmentForm({
         id = await update.mutateAsync({
           id: initial._id,
           patientId: submittedPatientId ?? null,
-          typeId: effectiveTypeId as Id<"appointmentTypes">,
+          typeId: selectedType._id,
           title,
           startTime: start,
           endTime: end,
@@ -418,7 +418,7 @@ export function AppointmentForm({
       } else {
         id = await create.mutateAsync({
           patientId: submittedPatientId,
-          typeId: effectiveTypeId as Id<"appointmentTypes">,
+          typeId: selectedType._id,
           title: title || undefined,
           startTime: start,
           endTime: end,

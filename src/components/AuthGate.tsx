@@ -35,7 +35,11 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (!isAuthenticated) {
     if (pathname === "/login") return <>{children}</>;
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50">
+        <p className="text-sm text-stone-500">Redirigiendo al inicio de sesión...</p>
+      </div>
+    );
   }
 
   return (

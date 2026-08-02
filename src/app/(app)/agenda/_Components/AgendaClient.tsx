@@ -38,8 +38,9 @@ import { useEffect, useReducer } from "react";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { useQueryStates } from "nuqs";
 import { agendaSearchParams } from "@/lib/search-params";
+import { ActionError } from "@/components/ActionError";
 import { DatePicker } from "@/components/ui/date-picker";
-import { mergeFormState } from "@/lib/form-state";
+import { mergeFormState, readableError } from "@/lib/form-state";
 
 type AgendaUiState = {
   openNew: boolean;
@@ -47,6 +48,7 @@ type AgendaUiState = {
   editId: Id<"appointments"> | null;
   highlightedId: Id<"appointments"> | null;
   notice: AppointmentFormResult | null;
+  actionError: string;
 };
 
 type View = "day" | "week" | "month";
@@ -65,8 +67,9 @@ export function AgendaClient() {
     editId: null,
     highlightedId: null,
     notice: null,
+    actionError: "",
   });
-  const { openNew, defaultTime, editId, highlightedId, notice } = ui;
+  const { openNew, defaultTime, editId, highlightedId, notice, actionError } = ui;
   const setOpenNew = (openNew: boolean) => updateUi({ openNew });
   const setDefaultTime = (defaultTime?: string) => updateUi({ defaultTime });
   const setEditId = (editId: Id<"appointments"> | null) => updateUi({ editId });
@@ -235,6 +238,11 @@ export function AgendaClient() {
         </div>
       </div>
 
+      <ActionError
+        message={actionError}
+        onDismiss={() => updateUi({ actionError: "" })}
+      />
+
       {notice && (
         <div
           role="status"
@@ -247,9 +255,20 @@ export function AgendaClient() {
               <Button
                 size="sm"
                 variant="outline"
+                disabled={restoreAppointment.isPending}
                 onClick={async () => {
-                  await restoreAppointment.mutateAsync({ id: notice.id });
-                  setNotice(null);
+                  updateUi({ actionError: "" });
+                  try {
+                    await restoreAppointment.mutateAsync({ id: notice.id });
+                    setNotice(null);
+                  } catch (error) {
+                    updateUi({
+                      actionError: readableError(
+                        error,
+                        "No se pudo restaurar el turno.",
+                      ),
+                    });
+                  }
                 }}
               >
                 Deshacer
@@ -279,7 +298,7 @@ export function AgendaClient() {
               workEnd={workEnd}
               isToday={cursor === today}
               highlightedId={highlightedId}
-              onSelect={(id) => setEditId(id as Id<"appointments">)}
+              onSelect={setEditId}
               onSlotClick={(hour, minute = 0) => {
                 setDefaultTime(
                   `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,

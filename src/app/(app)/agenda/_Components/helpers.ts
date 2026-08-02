@@ -1,5 +1,7 @@
+import type { Id } from "../../../../../convex/_generated/dataModel";
+
 export type TimelineAppointment = {
-  _id: string;
+  _id: Id<"appointments">;
   startTime: number;
   endTime: number;
   status: string;
