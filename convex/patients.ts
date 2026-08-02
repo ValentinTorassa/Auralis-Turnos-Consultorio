@@ -92,15 +92,17 @@ export const list = query({
 });
 
 export const get = query({
-  args: { id: v.id("patients") },
+  args: { id: v.string() },
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx);
-    const patient = await ctx.db.get(args.id);
+    const id = ctx.db.normalizeId("patients", args.id);
+    if (!id) return null;
+    const patient = await ctx.db.get(id);
     if (!patient || patient.userId !== userId) return null;
 
     const appointments = await ctx.db
       .query("appointments")
-      .withIndex("by_patient", (q) => q.eq("patientId", args.id))
+      .withIndex("by_patient", (q) => q.eq("patientId", id))
       .collect();
     const visibleAppointments = appointments.filter((a) => !a.deletedAt);
 
@@ -145,15 +147,17 @@ export const get = query({
 });
 
 export const warnings = query({
-  args: { patientId: v.id("patients") },
+  args: { patientId: v.string() },
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx);
-    const patient = await ctx.db.get(args.patientId);
+    const patientId = ctx.db.normalizeId("patients", args.patientId);
+    if (!patientId) return [];
+    const patient = await ctx.db.get(patientId);
     if (!patient || patient.userId !== userId) return [];
 
     const appointments = await ctx.db
       .query("appointments")
-      .withIndex("by_patient", (q) => q.eq("patientId", args.patientId))
+      .withIndex("by_patient", (q) => q.eq("patientId", patientId))
       .collect();
     const visibleAppointments = appointments.filter((a) => !a.deletedAt);
 

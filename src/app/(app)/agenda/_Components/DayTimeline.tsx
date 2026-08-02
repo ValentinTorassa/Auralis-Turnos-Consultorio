@@ -7,59 +7,13 @@ import {
 } from "@/lib/agenda";
 import { cn, formatTime, getCalendarRange, minutesInDay } from "@/lib/utils";
 import { useNow } from "@/lib/useNow";
-import { Badge } from "./ui";
+import { Badge } from "@/components/ui";
 import { useEffect, useRef } from "react";
-
-type Appt = {
-  _id: string;
-  startTime: number;
-  endTime: number;
-  status: string;
-  paymentStatus: string;
-  notes?: string;
-  title?: string;
-  type?: { name: string; color: string } | null;
-  patient?: { fullName: string } | null;
-};
+import type { Id } from "../../../../../convex/_generated/dataModel";
+import { layoutTimelineLanes, TimelineAppointment } from "./helpers";
 
 const HOUR_HEIGHT = 88;
 const PIXELS_PER_MINUTE = HOUR_HEIGHT / 60;
-
-function layoutLanes(appointments: Appt[]) {
-  const sorted = [...appointments].sort(
-    (a, b) => a.startTime - b.startTime || a.endTime - b.endTime,
-  );
-  const placed: { appt: Appt; lane: number; laneCount: number }[] = [];
-  let cluster: { appt: Appt; lane: number }[] = [];
-  let laneEnds: number[] = [];
-  let clusterEnd = -Infinity;
-
-  const flush = () => {
-    const laneCount = laneEnds.length || 1;
-    for (const item of cluster) placed.push({ ...item, laneCount });
-    cluster = [];
-    laneEnds = [];
-  };
-
-  for (const appt of sorted) {
-    if (appt.startTime >= clusterEnd) {
-      flush();
-      clusterEnd = appt.endTime;
-    } else {
-      clusterEnd = Math.max(clusterEnd, appt.endTime);
-    }
-    let lane = laneEnds.findIndex((end) => end <= appt.startTime);
-    if (lane === -1) {
-      lane = laneEnds.length;
-      laneEnds.push(appt.endTime);
-    } else {
-      laneEnds[lane] = appt.endTime;
-    }
-    cluster.push({ appt, lane });
-  }
-  flush();
-  return placed;
-}
 
 export function DayTimeline({
   appointments,
@@ -71,19 +25,20 @@ export function DayTimeline({
   highlightedId,
   date,
 }: {
-  appointments: Appt[];
+  appointments: TimelineAppointment[];
   date: string;
-  onSelect: (id: string) => void;
+  onSelect: (id: Id<"appointments">) => void;
   onSlotClick?: (hour: number, minute?: number) => void;
   workStart?: string;
   workEnd?: string;
   isToday?: boolean;
-  highlightedId?: string | null;
+  highlightedId?: Id<"appointments"> | null;
 }) {
   const now = useNow();
   const nowLineRef = useRef<HTMLDivElement>(null);
   const highlightedRef = useRef<HTMLButtonElement>(null);
-  const scrolledRef = useRef(false);
+  const timelineRef = useRef<HTMLDivElement>(null);
+  const scrolledDateRef = useRef<string | null>(null);
   const { startMs: dayStart, endMs: dayEnd } = getCalendarRange(date, "day");
   const eventSpans = appointments.flatMap((appointment) => {
     const span = getEventSpanForDay(appointment, date);
@@ -114,12 +69,32 @@ export function DayTimeline({
     nowMinutes !== null &&
     nowMinutes >= displayStart &&
     nowMinutes <= displayEnd;
+  const scrollTail = showNowLine ? 128 : 0;
 
   useEffect(() => {
-    if (!showNowLine || scrolledRef.current || highlightedId) return;
-    scrolledRef.current = true;
-    nowLineRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
-  }, [highlightedId, showNowLine]);
+    if (highlightedId) {
+      scrolledDateRef.current = date;
+      return;
+    }
+    if (
+      !showNowLine ||
+      scrolledDateRef.current === date ||
+      !timelineRef.current ||
+      !nowLineRef.current
+    ) {
+      return;
+    }
+    const timeout = window.setTimeout(() => {
+      if (!timelineRef.current || !nowLineRef.current) return;
+      timelineRef.current.scrollTo({
+        top: Math.max(0, nowLineRef.current.offsetTop - 72),
+        behavior: "auto",
+      });
+      scrolledDateRef.current = date;
+    }, 100);
+
+    return () => window.clearTimeout(timeout);
+  }, [date, highlightedId, showNowLine]);
 
   useEffect(() => {
     if (!highlightedId || !highlightedRef.current) return;
@@ -130,11 +105,14 @@ export function DayTimeline({
     });
   }, [appointmentIds, highlightedId]);
 
-  const placed = layoutLanes(appointments);
+  const placed = layoutTimelineLanes(appointments);
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-stone-200/90 bg-white shadow-sm">
-      <div className="relative" style={{ height: totalHeight }}>
+    <div
+      ref={timelineRef}
+      className="relative h-[26rem] max-h-[calc(100svh-11rem)] min-h-80 overflow-x-hidden overflow-y-auto overscroll-contain rounded-3xl border border-stone-200/90 bg-white shadow-sm scroll-smooth lg:h-[32rem]"
+    >
+      <div className="relative" style={{ height: totalHeight + scrollTail }}>
         {displayStart < habitualStart && (
           <div
             className="pointer-events-none absolute left-0 right-0 bg-amber-50/45"
@@ -206,7 +184,10 @@ export function DayTimeline({
           minute === displayStart || minute % 60 === 0 ? (
             <span
               key={`label-${minute}`}
-              className="absolute left-0 w-14 -translate-y-1/2 pl-2.5 text-xs font-semibold tabular-nums text-stone-400"
+              className={cn(
+                "absolute left-0 w-14 pl-2.5 text-xs font-semibold tabular-nums text-stone-400",
+                minute === displayStart ? "translate-y-2" : "-translate-y-1/2",
+              )}
               style={{ top: toTop(minute) }}
             >
               {formatTimelineMinute(minute)}

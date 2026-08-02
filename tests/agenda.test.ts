@@ -9,6 +9,7 @@ import {
   timeStringToMinutes,
 } from "../src/lib/agenda";
 import { getCalendarRange } from "../src/lib/utils";
+import { isValidDateKey } from "../src/lib/utils";
 
 describe("agenda timeline bounds", () => {
   it("extends a 21:00 workday to show a course ending at 21:45", () => {
@@ -92,5 +93,14 @@ describe("agenda overlap", () => {
         endMs,
       ),
     ).toBe(false);
+  });
+});
+
+describe("agenda date keys", () => {
+  it("accepts real calendar dates and rejects impossible ones", () => {
+    expect(isValidDateKey("2026-07-22")).toBe(true);
+    expect(isValidDateKey("2026-02-29")).toBe(false);
+    expect(isValidDateKey("2026-99-99")).toBe(false);
+    expect(isValidDateKey("22-07-2026")).toBe(false);
   });
 });

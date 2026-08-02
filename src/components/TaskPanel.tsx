@@ -1,12 +1,11 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
+import { convexQuery, useConvexMutation } from "@convex-dev/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "../../convex/_generated/api";
-import { useState } from "react";
 import { Button, Card, Empty, Input } from "./ui";
 import { IconBadge } from "./Icons";
 import {
-  CalendarDays,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -14,7 +13,11 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
-import { addDays, cn, todayKey } from "@/lib/utils";
+import { addDays, cn } from "@/lib/utils";
+import { ActionError } from "@/components/ActionError";
+import { DatePicker } from "@/components/ui/date-picker";
+import { useState } from "react";
+import { readableError } from "@/lib/form-state";
 
 function shortLabel(date: string): string {
   return new Intl.DateTimeFormat("es-AR", {
@@ -26,29 +29,52 @@ function shortLabel(date: string): string {
 
 export function TaskPanel({
   date,
+  today,
   onDateChange,
 }: {
   date: string;
+  today?: string;
   onDateChange?: (date: string) => void;
 }) {
-  const tasks = useQuery(api.tasks.byDate, { date }) ?? [];
-  const create = useMutation(api.tasks.create);
-  const toggle = useMutation(api.tasks.toggle);
-  const remove = useMutation(api.tasks.remove);
-  const [title, setTitle] = useState("");
-  const [adding, setAdding] = useState(false);
+  const { data: tasks = [] } = useQuery(
+    convexQuery(api.tasks.byDate, { date }),
+  );
+  const create = useMutation({
+    mutationFn: useConvexMutation(api.tasks.create),
+  });
+  const toggle = useMutation({
+    mutationFn: useConvexMutation(api.tasks.toggle),
+  });
+  const remove = useMutation({
+    mutationFn: useConvexMutation(api.tasks.remove),
+  });
+  const [actionError, setActionError] = useState("");
+  const isToday = Boolean(today) && date === today;
+  const listBusy = toggle.isPending || remove.isPending;
 
-  const isToday = date === todayKey();
-
-  async function addTask(e: React.FormEvent) {
-    e.preventDefault();
-    if (!title.trim()) return;
-    setAdding(true);
+  async function runTaskAction(
+    action: () => Promise<unknown>,
+    fallback: string,
+  ) {
+    setActionError("");
     try {
-      await create({ date, title });
-      setTitle("");
-    } finally {
-      setAdding(false);
+      await action();
+    } catch (error) {
+      setActionError(readableError(error, fallback));
+    }
+  }
+
+  async function addTask(e: React.SubmitEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+    const title = String(formData.get("title") ?? "").trim();
+    if (!title) return;
+    try {
+      await create.mutateAsync({ date, title });
+      form.reset();
+    } catch {
+      // TanStack conserva el error para mostrarlo debajo del formulario.
     }
   }
 
@@ -84,16 +110,12 @@ export function TaskPanel({
           >
             <ChevronLeft className="h-4.5 w-4.5" />
           </button>
-          <label className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl bg-white px-2 shadow-sm">
-            <CalendarDays className="h-4 w-4 shrink-0 text-violet-600" />
-            <span className="sr-only">Fecha de las tareas</span>
-            <input
-              type="date"
-              value={date}
-              onChange={(event) => onDateChange(event.target.value)}
-              className="h-9 min-w-0 flex-1 bg-transparent text-sm font-semibold text-stone-800 outline-none"
-            />
-          </label>
+          <DatePicker
+            value={date}
+            onChange={onDateChange}
+            aria-label="Fecha de las tareas"
+            className="h-9 min-w-0 flex-1 rounded-xl px-2 text-sm"
+          />
           <button
             type="button"
             onClick={() => onDateChange(addDays(date, 1))}
@@ -102,10 +124,10 @@ export function TaskPanel({
           >
             <ChevronRight className="h-4.5 w-4.5" />
           </button>
-          {!isToday && (
+          {today && !isToday && (
             <button
               type="button"
-              onClick={() => onDateChange(todayKey())}
+              onClick={() => onDateChange(today)}
               className="shrink-0 rounded-xl bg-white px-2.5 py-1.5 text-xs font-semibold text-teal-700 shadow-sm ring-1 ring-teal-100 transition hover:bg-teal-50"
             >
               Volver a hoy
@@ -116,9 +138,9 @@ export function TaskPanel({
 
       <form onSubmit={addTask} className="mb-4 flex gap-2">
         <Input
+          name="title"
+          required
           aria-label="Nueva tarea"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
           placeholder={
             isToday
               ? "Ej. Llamar al abogado..."
@@ -127,7 +149,7 @@ export function TaskPanel({
         />
         <Button
           type="submit"
-          disabled={adding || !title.trim()}
+          disabled={create.isPending}
           size="md"
           aria-label="Agregar"
           className="shrink-0 px-3"
@@ -135,6 +157,19 @@ export function TaskPanel({
           <Plus className="h-5 w-5" strokeWidth={2.5} />
         </Button>
       </form>
+      {create.error && (
+        <p role="alert" className="mb-4 text-sm text-rose-700">
+          {readableError(create.error, "No se pudo agregar la tarea.")}
+        </p>
+      )}
+      {actionError ? (
+        <div className="mb-4">
+          <ActionError
+            message={actionError}
+            onDismiss={() => setActionError("")}
+          />
+        </div>
+      ) : null}
 
       {tasks.length === 0 ? (
         <Empty
@@ -159,9 +194,15 @@ export function TaskPanel({
             >
               <button
                 type="button"
-                onClick={() => void toggle({ id: t._id })}
+                disabled={listBusy}
+                onClick={() =>
+                  void runTaskAction(
+                    () => toggle.mutateAsync({ id: t._id }),
+                    "No se pudo actualizar la tarea.",
+                  )
+                }
                 className={cn(
-                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border transition",
+                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border transition disabled:opacity-50",
                   t.done
                     ? "border-teal-600 bg-teal-600 text-white shadow-sm shadow-teal-700/20"
                     : "border-stone-300 bg-white text-transparent hover:border-teal-500 hover:bg-teal-50",
@@ -180,8 +221,14 @@ export function TaskPanel({
               </span>
               <button
                 type="button"
-                onClick={() => void remove({ id: t._id })}
-                className="rounded-xl p-2 text-stone-400 hover:bg-rose-50 hover:text-rose-600"
+                disabled={listBusy}
+                onClick={() =>
+                  void runTaskAction(
+                    () => remove.mutateAsync({ id: t._id }),
+                    "No se pudo eliminar la tarea.",
+                  )
+                }
+                className="rounded-xl p-2 text-stone-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
                 aria-label="Eliminar"
               >
                 <Trash2 className="h-4 w-4" />

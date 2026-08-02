@@ -31,15 +31,15 @@ Pensada para reemplazar la agenda en papel: turnos visuales, tareas del día, fi
 ## Requisitos
 
 - Node.js 20+
+- Bun 1.3+
 - Cuenta en [Convex](https://www.convex.dev) (plan free alcanza para empezar)
-- npm
 
 ## Setup local
 
 ```bash
 git clone https://github.com/ValentinTorassa/Auralis-Turnos-Consultorio.git
 cd Auralis-Turnos-Consultorio
-npm install
+bun install
 ```
 
 ### 1. Crear proyecto Convex + auth
@@ -47,7 +47,7 @@ npm install
 En una terminal:
 
 ```bash
-npx convex dev
+bunx convex dev
 ```
 
 - Iniciá sesión en Convex
@@ -57,17 +57,17 @@ npx convex dev
 En **otra** terminal (misma carpeta), configurá auth:
 
 ```bash
-npx @convex-dev/auth
+bunx @convex-dev/auth
 ```
 
 Seguí las instrucciones (genera las claves JWT en el dashboard de Convex).
 
 ### 2. Arrancar la app
 
-Con `npx convex dev` sigue corriendo:
+Con `bunx convex dev` sigue corriendo:
 
 ```bash
-npm run dev
+bun run dev
 ```
 
 Abrí [http://localhost:3000](http://localhost:3000)
@@ -88,7 +88,7 @@ Abrí [http://localhost:3000](http://localhost:3000)
 ### Backend → Convex
 
 ```bash
-npx convex deploy
+bunx convex deploy
 ```
 
 En el dashboard de Convex (producción):

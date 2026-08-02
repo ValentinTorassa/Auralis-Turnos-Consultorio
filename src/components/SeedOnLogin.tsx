@@ -1,17 +1,20 @@
 "use client";
 
-import { useMutation } from "convex/react";
+import { useConvexMutation } from "@convex-dev/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { api } from "../../convex/_generated/api";
 import { useEffect, useRef } from "react";
 
 export function SeedOnLogin() {
-  const ensureSeeded = useMutation(api.users.ensureSeeded);
+  const { mutateAsync: ensureSeeded } = useMutation({
+    mutationFn: useConvexMutation(api.users.ensureSeeded),
+  });
   const ran = useRef(false);
 
   useEffect(() => {
     if (ran.current) return;
     ran.current = true;
-    void ensureSeeded().catch(() => {
+    void ensureSeeded({}).catch(() => {
       ran.current = false;
     });
   }, [ensureSeeded]);

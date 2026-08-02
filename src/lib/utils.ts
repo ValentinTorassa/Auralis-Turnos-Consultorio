@@ -2,26 +2,53 @@ import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
 export const BUENOS_AIRES_TIME_ZONE = "America/Argentina/Buenos_Aires";
-const BUENOS_AIRES_OFFSET = "-03:00";
+export const BUENOS_AIRES_OFFSET = "-03:00";
+export const APP_TIME_ZONE = BUENOS_AIRES_TIME_ZONE;
+export const APP_DATE_OFFSET = BUENOS_AIRES_OFFSET;
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function dayKeyFromMs(ms: number): string {
+export function dateKeyFromDate(
+  date: Date,
+  timeZone = BUENOS_AIRES_TIME_ZONE,
+): string {
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: BUENOS_AIRES_TIME_ZONE,
+    timeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).formatToParts(new Date(ms));
+  }).formatToParts(date);
   const part = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((value) => value.type === type)?.value ?? "";
   return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
-export function todayKey(): string {
-  return dayKeyFromMs(Date.now());
+export function dayKeyFromMs(ms: number): string {
+  return dateKeyFromDate(new Date(ms));
+}
+
+export function dateKeyFromMs(ms: number): string {
+  return dayKeyFromMs(ms);
+}
+
+export function parseDateKey(dateStr: string): Date {
+  return new Date(`${dateStr}T12:00:00${BUENOS_AIRES_OFFSET}`);
+}
+
+export function isValidDateKey(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+  const parsed = parseDateKey(value);
+  return !Number.isNaN(parsed.getTime()) && dateKeyFromDate(parsed) === value;
+}
+
+export function todayKey(timeZone = BUENOS_AIRES_TIME_ZONE): string {
+  return dateKeyFromDate(new Date(), timeZone);
 }
 
 export function formatTime(ms: number): string {
@@ -34,7 +61,7 @@ export function formatTime(ms: number): string {
 }
 
 export function formatDateLong(dateStr: string): string {
-  const d = new Date(`${dateStr}T12:00:00${BUENOS_AIRES_OFFSET}`);
+  const d = parseDateKey(dateStr);
   return new Intl.DateTimeFormat("es-AR", {
     timeZone: BUENOS_AIRES_TIME_ZONE,
     weekday: "long",
