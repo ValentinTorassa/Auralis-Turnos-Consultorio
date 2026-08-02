@@ -1,6 +1,7 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
+import { convexQuery, useConvexMutation } from "@convex-dev/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useId, useReducer } from "react";
 import { api } from "../../../../../convex/_generated/api";
 import { Doc } from "../../../../../convex/_generated/dataModel";
@@ -62,9 +63,9 @@ function TypeCapabilities({
         <Field orientation="horizontal" className="w-auto gap-2">
           <Checkbox
             id={`${fieldId}-patient`}
-          checked={requiresPatient}
-            onCheckedChange={(requiresPatient) =>
-              onChange({ requiresPatient })
+            checked={requiresPatient}
+            onCheckedChange={(value) =>
+              onChange({ requiresPatient: value === true })
             }
           />
           <FieldLabel htmlFor={`${fieldId}-patient`} className="text-xs text-stone-700">
@@ -74,8 +75,8 @@ function TypeCapabilities({
         <Field orientation="horizontal" className="w-auto gap-2">
           <Checkbox
             id={`${fieldId}-payment`}
-          checked={tracksPayment}
-            onCheckedChange={(tracksPayment) => onChange({ tracksPayment })}
+            checked={tracksPayment}
+            onCheckedChange={(value) => onChange({ tracksPayment: value === true })}
           />
           <FieldLabel htmlFor={`${fieldId}-payment`} className="text-xs text-stone-700">
             Registra pago
@@ -84,9 +85,9 @@ function TypeCapabilities({
         <Field orientation="horizontal" className="w-auto gap-2">
           <Checkbox
             id={`${fieldId}-reminder`}
-          checked={supportsReminder}
-            onCheckedChange={(supportsReminder) =>
-              onChange({ supportsReminder })
+            checked={supportsReminder}
+            onCheckedChange={(value) =>
+              onChange({ supportsReminder: value === true })
             }
           />
           <FieldLabel htmlFor={`${fieldId}-reminder`} className="text-xs text-stone-700">
@@ -100,8 +101,12 @@ function TypeCapabilities({
 
 function TypeRow({ type }: { type: Doc<"appointmentTypes"> }) {
   const durationId = useId();
-  const updateType = useMutation(api.types.update);
-  const removeType = useMutation(api.types.remove);
+  const { mutateAsync: updateType } = useMutation({
+    mutationFn: useConvexMutation(api.types.update),
+  });
+  const { mutateAsync: removeType } = useMutation({
+    mutationFn: useConvexMutation(api.types.remove),
+  });
   const [draft, updateDraft] = useReducer(
     mergeFormState<TypeDraft>,
     draftFromType(type),
@@ -275,8 +280,10 @@ const initialNewTypeDraft: NewTypeDraft = {
 };
 
 export function AppointmentTypesCard() {
-  const types = useQuery(api.types.list) ?? [];
-  const createType = useMutation(api.types.create);
+  const { data: types = [] } = useQuery(convexQuery(api.types.list, {}));
+  const { mutateAsync: createType } = useMutation({
+    mutationFn: useConvexMutation(api.types.create),
+  });
   const [draft, updateDraft] = useReducer(
     mergeFormState<NewTypeDraft>,
     initialNewTypeDraft,

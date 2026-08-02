@@ -4,10 +4,8 @@ import { convexQuery, useConvexMutation } from "@convex-dev/react-query";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
-import { useId, useReducer } from "react";
+import { useId, useReducer, useState } from "react";
 import { Button, Input, Label } from "./ui";
-import { debounce, useQueryState } from "nuqs";
-import { patientPickerSearchParser } from "@/lib/search-params";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 import { mergeFormState, readableError } from "@/lib/form-state";
 
@@ -38,15 +36,8 @@ export function PatientPicker({
   const newNameId = `${groupId}-new-name`;
   const newPhoneId = `${groupId}-new-phone`;
   const errorId = `${groupId}-error`;
-  const [q, setQ] = useQueryState(
-    "patient",
-    patientPickerSearchParser.withOptions({
-      history: "replace",
-      shallow: true,
-      limitUrlUpdates: debounce(250),
-    }),
-  );
-  const debouncedQuery = useDebouncedValue(q.trim(), 250);
+  const [q, setQ] = useState("");
+  const debouncedQuery = useDebouncedValue(q.trim().slice(0, 120), 250);
   const [draft, updateDraft] = useReducer(mergeFormState<PickerDraft>, {
     creating: false,
     newName: "",
@@ -92,7 +83,7 @@ export function PatientPicker({
             className="text-sm text-teal-700 underline"
             onClick={() => {
               onChange(undefined);
-              void setQ(null);
+              setQ("");
             }}
           >
             Cambiar
@@ -108,7 +99,7 @@ export function PatientPicker({
             placeholder="Buscar por nombre o teléfono..."
             value={q}
             onChange={(e) => {
-              void setQ(e.target.value || null);
+              setQ(e.target.value.slice(0, 120));
               updateDraft({ creating: false });
             }}
             autoComplete="off"
@@ -125,7 +116,7 @@ export function PatientPicker({
                   className="block w-full px-3 py-2.5 text-left text-sm hover:bg-stone-50"
                   onClick={() => {
                     onChange(p._id, p.fullName);
-                    void setQ(null);
+                    setQ("");
                   }}
                 >
                   <span className="font-medium text-stone-900">{p.fullName}</span>
@@ -194,7 +185,7 @@ export function PatientPicker({
                         careType: "Consultorio",
                       });
                       onChange(id, newName.trim());
-                      void setQ(null);
+                      setQ("");
                       updateDraft({ creating: false, newName: "", newPhone: "" });
                     } catch {
                       // TanStack conserva el error para mostrarlo en el formulario.

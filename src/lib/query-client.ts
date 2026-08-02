@@ -11,7 +11,9 @@ function makeQueryClient(convexUrl: string): QueryClient {
       queries: {
         queryFn: convexQueryClient.queryFn(),
         queryKeyHashFn: convexQueryClient.hashFn(),
-        staleTime: 60_000,
+        // Convex pushes live updates; results are never "stale" in the REST sense.
+        staleTime: Number.POSITIVE_INFINITY,
+        gcTime: 60_000,
       },
     },
   });

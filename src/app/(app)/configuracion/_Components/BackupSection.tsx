@@ -1,6 +1,8 @@
 "use client";
 
-import { useConvex, useMutation } from "convex/react";
+import { useConvexMutation } from "@convex-dev/react-query";
+import { useMutation } from "@tanstack/react-query";
+import { useConvex } from "convex/react";
 import { useReducer, useRef } from "react";
 import { Download, FileKey2, LockKeyhole, Trash2, Upload } from "lucide-react";
 import { api } from "../../../../../convex/_generated/api";
@@ -16,7 +18,7 @@ import {
   decryptBackup,
   encryptBackup,
 } from "@/lib/backupCrypto";
-import { mergeFormState } from "@/lib/form-state";
+import { mergeFormState, readableError } from "@/lib/form-state";
 
 type RestorePreview = {
   mode: "replace";
@@ -72,7 +74,9 @@ function CountsGrid({ counts }: { counts: BackupCounts }) {
 
 export function BackupSection() {
   const convex = useConvex();
-  const restore = useMutation(api.backup.restoreSnapshot);
+  const { mutateAsync: restore } = useMutation({
+    mutationFn: useConvexMutation(api.backup.restoreSnapshot),
+  });
   const fileRef = useRef<HTMLInputElement>(null);
   const [state, updateState] = useReducer(mergeFormState<BackupState>, {
     exportPassphrase: "",
@@ -137,8 +141,7 @@ export function BackupSection() {
       });
     } catch (error) {
       updateState({
-        exportError:
-          error instanceof Error ? error.message : "No se pudo crear la copia.",
+        exportError: readableError(error, "No se pudo crear la copia."),
       });
     } finally {
       updateState({ exportBusy: false });
@@ -186,10 +189,10 @@ export function BackupSection() {
       updateState({ snapshot: validated, preview: result });
     } catch (error) {
       updateState({
-        restoreError:
-          error instanceof Error
-            ? error.message
-            : "No se pudo leer o validar la copia.",
+        restoreError: readableError(
+          error,
+          "No se pudo leer o validar la copia.",
+        ),
       });
     } finally {
       updateState({ restoreBusy: false });
@@ -218,10 +221,7 @@ export function BackupSection() {
       if (fileRef.current) fileRef.current.value = "";
     } catch (error) {
       updateState({
-        restoreError:
-          error instanceof Error
-            ? error.message
-            : "No se pudo restaurar la copia.",
+        restoreError: readableError(error, "No se pudo restaurar la copia."),
       });
     } finally {
       updateState({ restoreBusy: false });

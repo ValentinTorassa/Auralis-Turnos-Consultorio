@@ -217,9 +217,10 @@ export function AppointmentForm({
   const supportsReminder = selectedType?.supportsReminder ?? true;
   const editing = Boolean(initial && !duplicating);
 
-  if (!initial && configResolved && !configInitialized) {
+  useEffect(() => {
+    if (initial || !configResolved || configInitialized) return;
     // Establish query-backed defaults once; later query updates cannot replace edits.
-    const defaultType = types[0];
+    const defaultType = types?.[0];
     if (defaultType) {
       const patch: Partial<AppointmentState> = {
         typeId: defaultType._id,
@@ -236,7 +237,15 @@ export function AppointmentForm({
     } else {
       updateState({ configInitialized: true });
     }
-  }
+  }, [
+    configInitialized,
+    configResolved,
+    endEdited,
+    initial,
+    settings?.defaultDurationMin,
+    startTime,
+    types,
+  ]);
 
   const valueSignature = JSON.stringify([
     patientId ?? "",
@@ -580,19 +589,28 @@ export function AppointmentForm({
           <Button
             type="button"
             variant="danger"
+            disabled={saving}
             onClick={async () => {
               if (!confirm("¿Eliminar este turno?")) return;
-              await remove.mutateAsync({ id: initial._id });
-              onDirtyChange?.(false);
-              onDone({
-                id: initial._id,
-                created: false,
-                activity: selectedType?.name ?? "Actividad",
-                date,
-                startTime: initial.startTime,
-                endTime: initial.endTime,
-                deleted: true,
-              });
+              updateState({ error: "", errorControlId: "" });
+              try {
+                await remove.mutateAsync({ id: initial._id });
+                onDirtyChange?.(false);
+                onDone({
+                  id: initial._id,
+                  created: false,
+                  activity: selectedType?.name ?? "Actividad",
+                  date,
+                  startTime: initial.startTime,
+                  endTime: initial.endTime,
+                  deleted: true,
+                });
+              } catch (err) {
+                updateState({
+                  error: readableError(err, "No se pudo eliminar el turno."),
+                  errorControlId: "",
+                });
+              }
             }}
           >
             Eliminar

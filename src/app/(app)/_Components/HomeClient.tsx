@@ -336,9 +336,13 @@ export function HomeClient() {
                         <div className="mt-3 flex flex-wrap gap-2 border-t border-stone-100 pt-3">
                           <Button
                             size="sm"
+                            disabled={closeout.isPending}
                             onClick={(event) => {
                               event.stopPropagation();
-                              closeout.mutate({ id: a._id, action: "completed_paid" });
+                              void closeout.mutateAsync({
+                                id: a._id,
+                                action: "completed_paid",
+                              });
                             }}
                           >
                             {a.type?.tracksPayment === false ? "Realizado" : "Realizado + pagó"}
@@ -347,9 +351,13 @@ export function HomeClient() {
                             <Button
                               size="sm"
                               variant="outline"
+                              disabled={closeout.isPending}
                               onClick={(event) => {
                                 event.stopPropagation();
-                                closeout.mutate({ id: a._id, action: "completed_owes" });
+                                void closeout.mutateAsync({
+                                  id: a._id,
+                                  action: "completed_owes",
+                                });
                               }}
                             >
                               Realizado + debe
@@ -358,9 +366,13 @@ export function HomeClient() {
                           <Button
                             size="sm"
                             variant="ghost"
+                            disabled={closeout.isPending}
                             onClick={(event) => {
                               event.stopPropagation();
-                              closeout.mutate({ id: a._id, action: "no_show" });
+                              void closeout.mutateAsync({
+                                id: a._id,
+                                action: "no_show",
+                              });
                             }}
                           >
                             Ausente
@@ -368,9 +380,13 @@ export function HomeClient() {
                           <Button
                             size="sm"
                             variant="ghost"
+                            disabled={closeout.isPending}
                             onClick={(event) => {
                               event.stopPropagation();
-                              closeout.mutate({ id: a._id, action: "cancelled" });
+                              void closeout.mutateAsync({
+                                id: a._id,
+                                action: "cancelled",
+                              });
                             }}
                           >
                             Cancelar

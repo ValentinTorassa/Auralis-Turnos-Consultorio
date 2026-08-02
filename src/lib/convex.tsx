@@ -9,6 +9,8 @@ const emptySubscribe = () => () => {};
 
 export function ConvexClientProvider({ children }: { children: ReactNode }) {
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
+  // ConvexQueryClient allocates non-deterministic IDs (Math.random). Defer client
+  // creation until after hydration so Cache Components prerender stays deterministic.
   const isHydrated = useSyncExternalStore(
     emptySubscribe,
     () => true,

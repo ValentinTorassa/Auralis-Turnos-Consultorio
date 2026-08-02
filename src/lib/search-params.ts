@@ -1,6 +1,5 @@
 import {
   createParser,
-  parseAsString,
   parseAsStringLiteral,
 } from "nuqs/server";
 
@@ -30,5 +29,3 @@ export const patientListSearchParams = {
 export const homeTaskSearchParams = {
   tasks: dateKeyParser.withDefault(""),
 };
-
-export const patientPickerSearchParser = parseAsString.withDefault("");

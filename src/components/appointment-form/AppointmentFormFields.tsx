@@ -256,7 +256,7 @@ function Schedule() {
         <Checkbox
           id={ids.overnight}
           checked={endsNextDay}
-          onCheckedChange={(endsNextDay) => update({ endsNextDay })}
+          onCheckedChange={(value) => update({ endsNextDay: value === true })}
         />
         <FieldLabel htmlFor={ids.overnight} className="text-sm text-stone-700">
           Finaliza al día siguiente
@@ -386,7 +386,7 @@ function StatusAndReminder() {
           <Checkbox
             id={ids.reminder}
             checked={reminder}
-            onCheckedChange={(reminder) => update({ reminder })}
+            onCheckedChange={(value) => update({ reminder: value === true })}
           />
           <FieldLabel htmlFor={ids.reminder} className="text-sm text-stone-700">
             Recordarme avisar al paciente (24 h antes)

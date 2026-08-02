@@ -1,6 +1,7 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
+import { convexQuery, useConvexMutation } from "@convex-dev/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useReducer } from "react";
 import { api } from "../../../../../convex/_generated/api";
 import { Doc } from "../../../../../convex/_generated/dataModel";
@@ -19,7 +20,9 @@ type SettingsDraft = Pick<
 > & { saved: boolean; error: string };
 
 function SettingsForm({ settings }: { settings: Doc<"settings"> }) {
-  const update = useMutation(api.settings.update);
+  const { mutateAsync: update } = useMutation({
+    mutationFn: useConvexMutation(api.settings.update),
+  });
   const [draft, updateDraft] = useReducer(mergeFormState<SettingsDraft>, {
     workDayStart: settings.workDayStart,
     workDayEnd: settings.workDayEnd,
@@ -158,7 +161,7 @@ function SettingsForm({ settings }: { settings: Doc<"settings"> }) {
 }
 
 export function AgendaSettingsCard() {
-  const settings = useQuery(api.settings.get);
+  const { data: settings } = useQuery(convexQuery(api.settings.get, {}));
 
   return (
     <Card className="p-5">
