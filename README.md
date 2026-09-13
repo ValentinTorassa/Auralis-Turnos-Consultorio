@@ -105,9 +105,11 @@ El proyecto tiene dos dominios apuntados al mismo deploy de Vercel:
 | `turnos.yaninacolombero.com` | DonWeb (`ns1/ns2.donweb.com`) | `CNAME` → `fc57fd15f0a61a06.vercel-dns-017.com.` |
 | `turnos.valentorassa.com` | Cloudflare (DNS-only) | `CNAME` → `cname.vercel-dns.com` |
 
-Si se cambia el dominio principal hay que actualizar `SITE_URL` en el dashboard
-de Convex (producción), porque **@convex-dev/auth** lo usa para validar los
-redirects del login.
+Los dos hostnames sirven el mismo deploy, así que el login (password-only,
+sin OAuth ni magic links) funciona en ambos. `SITE_URL` en el dashboard de
+Convex conviene igual mantenerlo apuntando al dominio principal: lo usa
+**@convex-dev/auth** para armar URLs absolutas si en el futuro se suma un
+proveedor con redirect.
 
 ## Uso diario sugerido
 
