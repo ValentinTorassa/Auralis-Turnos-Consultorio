@@ -12,6 +12,7 @@ import type * as appointmentTypeDefaults from "../appointmentTypeDefaults.js";
 import type * as appointments from "../appointments.js";
 import type * as auth from "../auth.js";
 import type * as backup from "../backup.js";
+import type * as backupAuto from "../backupAuto.js";
 import type * as backupModel from "../backupModel.js";
 import type * as crons from "../crons.js";
 import type * as http from "../http.js";
@@ -40,6 +41,7 @@ declare const fullApi: ApiFromModules<{
   appointments: typeof appointments;
   auth: typeof auth;
   backup: typeof backup;
+  backupAuto: typeof backupAuto;
   backupModel: typeof backupModel;
   crons: typeof crons;
   http: typeof http;

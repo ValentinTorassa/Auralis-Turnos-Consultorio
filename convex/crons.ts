@@ -10,4 +10,12 @@ crons.monthly(
   internal.psychiatristInternal.ensureAllUsers,
 );
 
+// Semanal: copia de seguridad automática de cada usuario.
+// Domingo 06:00 UTC = 03:00 en Argentina, fuera del horario de consultorio.
+crons.weekly(
+  "auto backup",
+  { dayOfWeek: "sunday", hourUTC: 6, minuteUTC: 0 },
+  internal.backupAuto.runAll,
+);
+
 export default crons;

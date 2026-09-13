@@ -127,6 +127,21 @@ export default defineSchema({
     seeded: v.boolean(),
   }).index("by_user", ["userId"]),
 
+  /**
+   * Copias automáticas guardadas en el storage de Convex. Protegen contra
+   * borrado accidental o restauración fallida, no contra un compromiso de
+   * Convex: viven en el mismo lugar que los datos. La copia cifrada que se
+   * descarga a mano sigue siendo la que sirve para sacar los datos de acá.
+   */
+  autoBackups: defineTable({
+    userId: v.id("users"),
+    storageId: v.id("_storage"),
+    snapshotId: v.string(),
+    exportedAt: v.number(),
+    recordCount: v.number(),
+    bytes: v.number(),
+  }).index("by_user_exported", ["userId", "exportedAt"]),
+
   backupImports: defineTable({
     userId: v.id("users"),
     snapshotId: v.string(),

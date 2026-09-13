@@ -80,10 +80,17 @@ async function userImportReceipts(ctx: Ctx, userId: Id<"users">) {
     .collect();
 }
 
-export const exportSnapshot = query({
-  args: { snapshotId: v.string() },
-  handler: async (ctx, args) => {
-    const userId = await requireUserId(ctx);
+/**
+ * Arma el snapshot completo de un usuario. Lo comparten el export manual y el
+ * backup automático del cron, para que no puedan divergir.
+ */
+export async function buildSnapshot(
+  ctx: Ctx,
+  userId: Id<"users">,
+  snapshotId: string,
+) {
+  {
+    const args = { snapshotId };
     if (!/^[A-Za-z0-9-]{16,80}$/.test(args.snapshotId)) {
       throw new Error("Identificador de copia inválido");
     }
@@ -194,6 +201,14 @@ export const exportSnapshot = query({
 
     // The same strict parser used by restore also checks all exported references.
     return validateBackupSnapshot(snapshot);
+  }
+}
+
+export const exportSnapshot = query({
+  args: { snapshotId: v.string() },
+  handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
+    return buildSnapshot(ctx, userId, args.snapshotId);
   },
 });
 

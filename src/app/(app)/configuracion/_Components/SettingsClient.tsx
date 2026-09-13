@@ -6,6 +6,7 @@ import { Button, Card } from "@/components/ui";
 import { IconBadge } from "@/components/Icons";
 import { AgendaSettingsCard } from "./AgendaSettingsCard";
 import { AppointmentTypesCard } from "./AppointmentTypesCard";
+import { AutoBackupsCard } from "./AutoBackupsCard";
 import { BackupSection } from "./BackupSection";
 
 function PrivacyCard() {
@@ -58,6 +59,7 @@ export function SettingsClient() {
         </div>
         <AppointmentTypesCard />
       </div>
+      <AutoBackupsCard />
       <BackupSection />
     </div>
   );
