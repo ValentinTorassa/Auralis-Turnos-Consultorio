@@ -104,7 +104,8 @@ En el dashboard de Convex (producción):
 Sin estas claves los avisos siguen funcionando dentro de la app, pero no salen
 como notificación. El cron detecta que faltan y no hace nada, sin romper.
 
-Generá un par de claves VAPID:
+Ya están configuradas en producción. Para rotarlas o levantar otro entorno,
+generá un par nuevo:
 
 ```bash
 bunx web-push generate-vapid-keys
@@ -139,8 +140,8 @@ El proyecto tiene varios dominios apuntados al mismo deploy de Vercel:
 | `agenda.yaninacolombero.com` | DonWeb | `A` → `216.198.79.1` |
 | `turnos.valentorassa.com` | Cloudflare (DNS-only) | `CNAME` → `cname.vercel-dns.com` |
 
-`app` y `agenda` quedaron de cuando `turnos` estuvo trabado y sobran: se
-pueden borrar de la zona DNS y del proyecto en Vercel.
+Los tres apuntan al mismo deploy a propósito: `turnos` es el que se comparte,
+y `app` / `agenda` quedan como alias por si alguno se recuerda distinto.
 
 **Al agregar un subdominio, primero el registro DNS y después el dominio en
 Vercel.** Al revés, Vercel consulta el nombre cuando todavía no existe y el
