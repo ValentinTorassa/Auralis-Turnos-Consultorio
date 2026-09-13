@@ -1,6 +1,6 @@
 # Auralis - Turnos y Consultorio
 
-**Producción:** https://turnos.valentorassa.com
+**Producción:** https://turnos.yaninacolombero.com (también responde https://turnos.valentorassa.com)
 
 Agenda digital **personal** para consultorio psicológico y pericias.  
 Pensada para reemplazar la agenda en papel: turnos visuales, tareas del día, fichas de pacientes, pagos livianos, recordatorios y agenda del psiquiatra.
@@ -94,13 +94,20 @@ bunx convex deploy
 En el dashboard de Convex (producción):
 
 - Completá las variables de **@convex-dev/auth** (JWT)
-- `SITE_URL` = dominio público (actual: `https://turnos.valentorassa.com`)
+- `SITE_URL` = dominio público (actual: `https://turnos.yaninacolombero.com`)
 
-### Dominio propio (Cloudflare)
+### Dominios propios
 
-El dominio `turnos.valentorassa.com` es un CNAME a `cname.vercel-dns.com`
-(zona `valentorassa.com` en Cloudflare, DNS-only) y está agregado como
-custom domain del proyecto en Vercel.
+El proyecto tiene dos dominios apuntados al mismo deploy de Vercel:
+
+| Dominio | Zona DNS | Registro |
+|---|---|---|
+| `turnos.yaninacolombero.com` | DonWeb (`ns1/ns2.donweb.com`) | `CNAME` → `fc57fd15f0a61a06.vercel-dns-017.com.` |
+| `turnos.valentorassa.com` | Cloudflare (DNS-only) | `CNAME` → `cname.vercel-dns.com` |
+
+Si se cambia el dominio principal hay que actualizar `SITE_URL` en el dashboard
+de Convex (producción), porque **@convex-dev/auth** lo usa para validar los
+redirects del login.
 
 ## Uso diario sugerido
 
