@@ -127,6 +127,18 @@ export function rescheduledReminderDueAt(
   return currentDueAt + (nextStartTime - previousStartTime);
 }
 
+/**
+ * Avisos cuyo vínculo con el turno dejó de ser cierto porque al turno le
+ * cambiaron el paciente. Los que ya apuntan al paciente nuevo se dejan como
+ * están: ésos son los activos, que se resincronizan aparte.
+ */
+export function remindersToUnlink<T extends { patientId?: string }>(
+  linked: T[],
+  appointmentPatientId: string | undefined,
+): T[] {
+  return linked.filter((reminder) => reminder.patientId !== appointmentPatientId);
+}
+
 export function shouldCreateAppointmentReminder(
   wasEnabled: boolean,
   isEnabled: boolean,
@@ -634,6 +646,23 @@ export const update = mutation({
         await ctx.db.patch(reminder._id, { active: false, done: true });
       }
     }
+
+    // Un aviso cerrado conserva el turno al que apuntaba. Si al turno le
+    // cambian el paciente, ese vínculo pasa a afirmar algo falso — y el parser
+    // estricto de las copias lo rechaza, invalidando el snapshot entero.
+    // Se corta el vínculo y el aviso queda como registro de lo que se hizo con
+    // el paciente anterior, que es lo que efectivamente pasó.
+    if (patientId !== row.patientId) {
+      const linked = await ctx.db
+        .query("reminders")
+        .withIndex("by_user_due", (q) => q.eq("userId", userId))
+        .filter((q) => q.eq(q.field("appointmentId"), args.id))
+        .collect();
+      for (const reminder of remindersToUnlink(linked, patientId)) {
+        await ctx.db.patch(reminder._id, { appointmentId: undefined });
+      }
+    }
+
     return args.id;
   },
 });
