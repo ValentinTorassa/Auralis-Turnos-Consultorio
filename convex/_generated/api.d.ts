@@ -20,6 +20,8 @@ import type * as lib from "../lib.js";
 import type * as migrations from "../migrations.js";
 import type * as patients from "../patients.js";
 import type * as payments from "../payments.js";
+import type * as push from "../push.js";
+import type * as pushSender from "../pushSender.js";
 import type * as psychiatrist from "../psychiatrist.js";
 import type * as psychiatristInternal from "../psychiatristInternal.js";
 import type * as psychiatristModel from "../psychiatristModel.js";
@@ -49,6 +51,8 @@ declare const fullApi: ApiFromModules<{
   migrations: typeof migrations;
   patients: typeof patients;
   payments: typeof payments;
+  push: typeof push;
+  pushSender: typeof pushSender;
   psychiatrist: typeof psychiatrist;
   psychiatristInternal: typeof psychiatristInternal;
   psychiatristModel: typeof psychiatristModel;

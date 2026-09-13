@@ -25,7 +25,9 @@ Pensada para reemplazar la agenda en papel: turnos visuales, tareas del día, fi
 | **Pacientes** | Ficha admin, búsqueda, WhatsApp, historial, alertas de cancelación/deuda |
 | **Pagos** | Por turno: pagó / no pagó / debe / forma / nota |
 | **Psiquiatra** | Genera el 3.er viernes de cada mes desde las 15:00 |
-| **Recordatorios** | Internos + botón WhatsApp con mensaje listo |
+| **Recordatorios** | Internos + push al celular + botón WhatsApp con mensaje listo |
+| **Caja** | Cobrado, adeudado y por cobrar del mes, cortes por tipo y forma de pago, y quién debe |
+| **Copias** | Automática semanal en Convex + export cifrado manual |
 | **Auth** | Email y contraseña (datos privados por usuario) |
 
 ## Requisitos
@@ -95,6 +97,35 @@ En el dashboard de Convex (producción):
 
 - Completá las variables de **@convex-dev/auth** (JWT)
 - `SITE_URL` = dominio público (actual: `https://turnos.yaninacolombero.com`)
+
+### Notificaciones push (avisos en el celular)
+
+Sin estas claves los avisos siguen funcionando dentro de la app, pero no salen
+como notificación. El cron detecta que faltan y no hace nada, sin romper.
+
+Generá un par de claves VAPID:
+
+```bash
+bunx web-push generate-vapid-keys
+```
+
+En Convex (producción):
+
+```bash
+bunx convex env set VAPID_PUBLIC_KEY  "<clave pública>"
+bunx convex env set VAPID_PRIVATE_KEY "<clave privada>"
+bunx convex env set VAPID_SUBJECT     "mailto:tu@email.com"
+```
+
+En Vercel, la misma clave **pública** (la privada no va acá nunca):
+
+```
+NEXT_PUBLIC_VAPID_PUBLIC_KEY = <clave pública>
+```
+
+Después, cada dispositivo se activa por separado desde **Ajustes → Avisos en el
+celular**. En iPhone hay que instalar la app primero (Compartir → Agregar a
+inicio): Safari no permite push en pestañas comunes.
 
 ### Dominios propios
 

@@ -10,6 +10,13 @@ crons.monthly(
   internal.psychiatristInternal.ensureAllUsers,
 );
 
+// Cada 5 minutos: entrega por push los avisos que vencieron.
+crons.interval(
+  "deliver due reminders",
+  { minutes: 5 },
+  internal.pushSender.deliverDue,
+);
+
 // Semanal: copia de seguridad automática de cada usuario.
 // Domingo 06:00 UTC = 03:00 en Argentina, fuera del horario de consultorio.
 crons.weekly(

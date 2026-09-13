@@ -128,6 +128,21 @@ export default defineSchema({
   }).index("by_user", ["userId"]),
 
   /**
+   * Suscripciones Web Push del navegador. Una por dispositivo: el mismo
+   * usuario puede tener el celular y la compu.
+   */
+  pushSubscriptions: defineTable({
+    userId: v.id("users"),
+    endpoint: v.string(),
+    p256dh: v.string(),
+    auth: v.string(),
+    createdAt: v.number(),
+    lastFailureAt: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_endpoint", ["endpoint"]),
+
+  /**
    * Copias automáticas guardadas en el storage de Convex. Protegen contra
    * borrado accidental o restauración fallida, no contra un compromiso de
    * Convex: viven en el mismo lugar que los datos. La copia cifrada que se
