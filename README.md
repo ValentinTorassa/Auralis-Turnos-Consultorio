@@ -130,12 +130,22 @@ inicio): Safari no permite push en pestañas comunes.
 
 ### Dominios propios
 
-El proyecto tiene dos dominios apuntados al mismo deploy de Vercel:
+El proyecto tiene varios dominios apuntados al mismo deploy de Vercel:
 
 | Dominio | Zona DNS | Registro |
 |---|---|---|
-| `turnos.yaninacolombero.com` | DonWeb (`ns1/ns2.donweb.com`) | `CNAME` → `fc57fd15f0a61a06.vercel-dns-017.com.` |
+| `turnos.yaninacolombero.com` | DonWeb (`ns1/ns2.donweb.com`) | `A` → `216.198.79.1` |
+| `app.yaninacolombero.com` | DonWeb | `A` → `216.198.79.1` |
+| `agenda.yaninacolombero.com` | DonWeb | `A` → `216.198.79.1` |
 | `turnos.valentorassa.com` | Cloudflare (DNS-only) | `CNAME` → `cname.vercel-dns.com` |
+
+`app` y `agenda` quedaron de cuando `turnos` estuvo trabado y sobran: se
+pueden borrar de la zona DNS y del proyecto en Vercel.
+
+**Al agregar un subdominio, primero el registro DNS y después el dominio en
+Vercel.** Al revés, Vercel consulta el nombre cuando todavía no existe y el
+`SOA minimum 86400` de DonWeb le deja cacheado "no existe" por 24 horas: el
+certificado no se emite y no hay forma de destrabarlo desde la API.
 
 Los dos hostnames sirven el mismo deploy, así que el login (password-only,
 sin OAuth ni magic links) funciona en ambos. `SITE_URL` en el dashboard de
