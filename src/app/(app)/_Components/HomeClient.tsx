@@ -4,6 +4,7 @@ import { convexQuery, useConvexMutation } from "@convex-dev/react-query";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "../../../../convex/_generated/api";
 import { TaskPanel } from "@/components/TaskPanel";
+import { PendingReportsCard } from "./PendingReportsCard";
 import {
   AppointmentModal,
   AppointmentFormResult,
@@ -445,6 +446,8 @@ export function HomeClient() {
               void setTaskDate(nextDate === date ? null : nextDate)
             }
           />
+
+          <PendingReportsCard />
 
           <Card className="p-4 sm:p-5">
             <div className="mb-3 flex items-center justify-between gap-2">

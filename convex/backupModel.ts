@@ -23,6 +23,7 @@ export type BackupAppointmentType = {
   supportsReminder?: boolean;
   defaultDurationMin?: number;
   defaultPrice?: number;
+  tracksReport?: boolean;
   isSystemType?: boolean;
 };
 
@@ -49,6 +50,8 @@ export type BackupAppointment = {
   paymentMethod?: string;
   paymentNotes?: string;
   amount?: number;
+  reportDueAt?: number;
+  reportDoneAt?: number;
   paidAt?: number;
   notes?: string;
   isPsychiatrist: boolean;
@@ -261,7 +264,7 @@ function validateAppointmentType(value: unknown, index: number) {
     [
       "id", "name", "color", "isPsychiatrist", "sortOrder", "code",
       "requiresPatient", "tracksPayment", "supportsReminder",
-      "defaultDurationMin", "defaultPrice", "isSystemType",
+      "defaultDurationMin", "defaultPrice", "tracksReport", "isSystemType",
     ],
     ["id", "name", "color", "isPsychiatrist", "sortOrder"],
     label,
@@ -277,6 +280,7 @@ function validateAppointmentType(value: unknown, index: number) {
   optionalBoolean(row, "supportsReminder", label);
   optionalInteger(row, "defaultDurationMin", label, 5, 1_440);
   optionalInteger(row, "defaultPrice", label, 1, 100_000_000);
+  optionalBoolean(row, "tracksReport", label);
   optionalBoolean(row, "isSystemType", label);
 }
 
@@ -314,7 +318,8 @@ function validateAppointment(value: unknown, index: number) {
     row,
     [
       "id", "patientRef", "typeRef", "title", "startTime", "endTime",
-      "status", "paymentStatus", "paymentMethod", "paymentNotes", "amount", "paidAt",
+      "status", "paymentStatus", "paymentMethod", "paymentNotes", "amount",
+      "reportDueAt", "reportDoneAt", "paidAt",
       "notes", "isPsychiatrist", "reminderEnabled", "seriesRef",
       "occurrenceIndex", "deletedAt", "createdAt", "updatedAt",
     ],
@@ -339,6 +344,8 @@ function validateAppointment(value: unknown, index: number) {
   optionalString(row, "paymentMethod", label, 200, { min: 1 });
   optionalString(row, "paymentNotes", label, 500, { min: 1 });
   optionalInteger(row, "amount", label, 1, 100_000_000);
+  optionalDate(row, "reportDueAt", label);
+  optionalDate(row, "reportDoneAt", label);
   optionalDate(row, "paidAt", label);
   optionalString(row, "notes", label, 4_000, { min: 1 });
   boolean(row.isPsychiatrist, `${label}.isPsychiatrist`);

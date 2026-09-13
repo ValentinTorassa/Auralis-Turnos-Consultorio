@@ -18,6 +18,8 @@ export default defineSchema({
     defaultDurationMin: v.optional(v.number()),
     /** Precio sugerido en pesos enteros; precarga el importe del turno. */
     defaultPrice: v.optional(v.number()),
+    /** El tipo produce un informe con plazo de presentación (pericias). */
+    tracksReport: v.optional(v.boolean()),
     isSystemType: v.optional(v.boolean()),
   }).index("by_user", ["userId"]),
 
@@ -58,6 +60,9 @@ export default defineSchema({
     paymentNotes: v.optional(v.string()),
     /** Importe del turno en pesos enteros. Sin esto los totales no cierran. */
     amount: v.optional(v.number()),
+    /** Vencimiento para presentar el informe. Sólo en tipos con tracksReport. */
+    reportDueAt: v.optional(v.number()),
+    reportDoneAt: v.optional(v.number()),
     paidAt: v.optional(v.number()),
     notes: v.optional(v.string()),
     isPsychiatrist: v.boolean(),

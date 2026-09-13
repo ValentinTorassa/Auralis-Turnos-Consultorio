@@ -8,6 +8,7 @@ export function appointmentTypeRules(type: {
   requiresPatient?: boolean;
   tracksPayment?: boolean;
   supportsReminder?: boolean;
+  tracksReport?: boolean;
   defaultDurationMin?: number;
 }) {
   const system = DEFAULT_TYPES.find(
@@ -20,6 +21,7 @@ export function appointmentTypeRules(type: {
       type.requiresPatient ?? system?.requiresPatient ?? true,
     tracksPayment: type.tracksPayment ?? system?.tracksPayment ?? true,
     supportsReminder: type.supportsReminder ?? system?.supportsReminder ?? true,
+    tracksReport: type.tracksReport ?? system?.tracksReport ?? false,
     defaultDurationMin:
       type.defaultDurationMin ?? system?.defaultDurationMin ?? 50,
   };
@@ -61,6 +63,8 @@ export async function backfillAppointmentTypesForUser(
       patch.tracksPayment = systemType.tracksPayment;
     if (existing.supportsReminder === undefined)
       patch.supportsReminder = systemType.supportsReminder;
+    if (existing.tracksReport === undefined)
+      patch.tracksReport = systemType.tracksReport;
     if (existing.defaultDurationMin === undefined)
       patch.defaultDurationMin = systemType.defaultDurationMin;
     if (existing.isSystemType === undefined) patch.isSystemType = true;
@@ -81,6 +85,7 @@ export async function backfillAppointmentTypesForUser(
     if (type.requiresPatient === undefined) patch.requiresPatient = true;
     if (type.tracksPayment === undefined) patch.tracksPayment = true;
     if (type.supportsReminder === undefined) patch.supportsReminder = true;
+    if (type.tracksReport === undefined) patch.tracksReport = false;
     if (type.defaultDurationMin === undefined)
       patch.defaultDurationMin = customDefaultDurationMin;
     if (type.isSystemType === undefined) patch.isSystemType = false;

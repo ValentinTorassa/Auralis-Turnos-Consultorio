@@ -21,6 +21,7 @@ Pensada para reemplazar la agenda en papel: turnos visuales, tareas del día, fi
 | **Hoy** | Turnos del día, próximo turno resaltado, tareas, avisos |
 | **Agenda** | Vista día / semana / mes, alta rápida, edición, colores por tipo |
 | **Tipos** | Consultorio, pericias (consultorio / Rosario / Rafaela), otros, psiquiatría |
+| **Informes** | Las pericias llevan plazo de presentación aparte del turno; Hoy lista lo que falta entregar |
 | **Tareas** | Checklist del día junto a la agenda |
 | **Pacientes** | Ficha admin, búsqueda, WhatsApp, historial, alertas de cancelación/deuda |
 | **Pagos** | Por turno: pagó / no pagó / debe / forma / nota |

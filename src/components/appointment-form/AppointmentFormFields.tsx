@@ -31,6 +31,7 @@ type FieldIds = {
   notes: string;
   paymentLabel: string;
   paymentAmount: string;
+  reportDue: string;
   paymentMethod: string;
   paymentNotes: string;
   statusLabel: string;
@@ -54,6 +55,7 @@ type AppointmentFieldsContextValue = {
     showStatus: boolean;
     requiresPatient: boolean;
     tracksPayment: boolean;
+    tracksReport: boolean;
     supportsReminder: boolean;
   };
 };
@@ -350,6 +352,31 @@ function Payment() {
   );
 }
 
+function ReportDeadline() {
+  const {
+    state: { reportDueDate },
+    actions: { update },
+    meta: { ids, tracksReport },
+  } = useAppointmentFields();
+
+  if (!tracksReport) return null;
+
+  return (
+    <div>
+      <Label htmlFor={ids.reportDue}>Entrega del informe</Label>
+      <DatePicker
+        id={ids.reportDue}
+        value={reportDueDate}
+        onChange={(reportDueDate) => update({ reportDueDate })}
+      />
+      <p className="mt-1 text-xs text-stone-500">
+        El plazo para presentarlo, que no es el día de la entrevista. Queda
+        listado en Hoy hasta que lo marques entregado.
+      </p>
+    </div>
+  );
+}
+
 function StatusAndReminder() {
   const {
     state: { status, reminder },
@@ -416,5 +443,6 @@ export const AppointmentFields = {
   Identity,
   Schedule,
   Payment,
+  ReportDeadline,
   StatusAndReminder,
 };

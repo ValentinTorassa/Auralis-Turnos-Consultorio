@@ -203,3 +203,56 @@ export const debtors = query({
     );
   },
 });
+
+/**
+ * Informes de pericia pendientes de presentar.
+ *
+ * Una pericia no es sólo la hora de la entrevista: tiene un plazo para
+ * presentar el informe, que cae en otra fecha. Esto lista lo que falta
+ * entregar, lo vencido primero.
+ */
+export const pendingReports = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await requireUserId(ctx);
+
+    const rows = await ctx.db
+      .query("appointments")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+
+    const pending = rows.filter(
+      (row) =>
+        !row.deletedAt &&
+        row.reportDueAt !== undefined &&
+        row.reportDoneAt === undefined &&
+        row.status !== "cancelled",
+    );
+    if (pending.length === 0) return [];
+
+    const types = await ctx.db
+      .query("appointmentTypes")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    const typeMap = new Map(types.map((t) => [t._id, t]));
+
+    const enriched = await Promise.all(
+      pending.map(async (row) => {
+        const patient = row.patientId ? await ctx.db.get(row.patientId) : null;
+        const type = typeMap.get(row.typeId);
+        return {
+          appointmentId: row._id,
+          dueAt: row.reportDueAt!,
+          startTime: row.startTime,
+          title: row.title,
+          typeName: type?.name ?? "Pericia",
+          color: type?.color ?? "#8B5CF6",
+          patientName:
+            patient && patient.userId === userId ? patient.fullName : null,
+        };
+      }),
+    );
+
+    return enriched.sort((a, b) => a.dueAt - b.dueAt);
+  },
+});

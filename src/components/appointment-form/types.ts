@@ -12,6 +12,8 @@ export type AppointmentRecord = {
   paymentMethod?: string;
   paymentNotes?: string;
   amount?: number;
+  reportDueAt?: number;
+  reportDoneAt?: number;
   status: "confirmed" | "cancelled" | "no_show" | "completed";
   reminderEnabled: boolean;
 };
@@ -30,6 +32,8 @@ export type AppointmentState = {
   paymentNotes: string;
   /** Texto del input; se convierte a número recién al guardar. */
   amount: string;
+  /** Plazo del informe como YYYY-MM-DD; vacío = sin plazo. */
+  reportDueDate: string;
   status: AppointmentRecord["status"];
   reminder: boolean;
   recurrenceCount: 1 | 4 | 8 | 12;

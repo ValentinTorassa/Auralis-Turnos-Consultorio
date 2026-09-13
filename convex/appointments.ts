@@ -42,6 +42,19 @@ export function normalizeAmount(value: number | undefined): number | undefined {
   return rounded === 0 ? undefined : rounded;
 }
 
+/** Plazo de presentación del informe: fecha suelta, sin hora. */
+export function normalizeReportDueAt(value: number | undefined): number | undefined {
+  if (value === undefined || value === 0) return undefined;
+  if (
+    !Number.isSafeInteger(value) ||
+    value < MIN_DATE_MS ||
+    value >= MAX_DATE_MS
+  ) {
+    throw new Error("Fecha de entrega inválida");
+  }
+  return value;
+}
+
 export function validateAppointmentInterval(startTime: number, endTime: number) {
   if (
     !Number.isSafeInteger(startTime) ||
@@ -347,6 +360,7 @@ export const create = mutation({
     paymentMethod: v.optional(v.string()),
     paymentNotes: v.optional(v.string()),
     amount: v.optional(v.number()),
+    reportDueAt: v.optional(v.number()),
     reminderEnabled: v.optional(v.boolean()),
     recurrenceCount: recurrenceV,
     allowConflict: v.optional(v.boolean()),
@@ -404,6 +418,9 @@ export const create = mutation({
           ? (normalizeAmount(args.amount) ?? normalizeAmount(type.defaultPrice))
           : undefined,
         paidAt: paymentStatus === "paid" ? now : undefined,
+        reportDueAt: rules.tracksReport
+          ? normalizeReportDueAt(args.reportDueAt)
+          : undefined,
         notes: optionalText(args.notes, 4000),
         isPsychiatrist: type.isPsychiatrist,
         reminderEnabled,
@@ -455,6 +472,8 @@ export const update = mutation({
     paymentMethod: v.optional(v.string()),
     paymentNotes: v.optional(v.string()),
     amount: v.optional(v.number()),
+    reportDueAt: v.optional(v.number()),
+    reportDone: v.optional(v.boolean()),
     notes: v.optional(v.string()),
     reminderEnabled: v.optional(v.boolean()),
     allowConflict: v.optional(v.boolean()),
@@ -492,6 +511,10 @@ export const update = mutation({
     if (args.paymentNotes !== undefined)
       patch.paymentNotes = optionalText(args.paymentNotes, 500);
     if (args.amount !== undefined) patch.amount = normalizeAmount(args.amount);
+    if (args.reportDueAt !== undefined)
+      patch.reportDueAt = normalizeReportDueAt(args.reportDueAt);
+    if (args.reportDone !== undefined)
+      patch.reportDoneAt = args.reportDone ? Date.now() : undefined;
     if (args.notes !== undefined) patch.notes = optionalText(args.notes, 4000);
     if (args.reminderEnabled !== undefined)
       patch.reminderEnabled = args.reminderEnabled;

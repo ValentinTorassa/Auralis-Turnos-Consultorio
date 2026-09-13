@@ -74,6 +74,7 @@ export const DEFAULT_TYPES = [
     requiresPatient: true,
     tracksPayment: true,
     supportsReminder: true,
+    tracksReport: false,
     defaultDurationMin: 50,
   },
   {
@@ -85,6 +86,7 @@ export const DEFAULT_TYPES = [
     requiresPatient: true,
     tracksPayment: true,
     supportsReminder: true,
+    tracksReport: true,
     defaultDurationMin: 50,
   },
   {
@@ -96,6 +98,7 @@ export const DEFAULT_TYPES = [
     requiresPatient: true,
     tracksPayment: true,
     supportsReminder: true,
+    tracksReport: true,
     defaultDurationMin: 50,
   },
   {
@@ -107,6 +110,7 @@ export const DEFAULT_TYPES = [
     requiresPatient: true,
     tracksPayment: true,
     supportsReminder: true,
+    tracksReport: true,
     defaultDurationMin: 50,
   },
   {
@@ -118,6 +122,7 @@ export const DEFAULT_TYPES = [
     requiresPatient: false,
     tracksPayment: false,
     supportsReminder: false,
+    tracksReport: false,
     defaultDurationMin: 60,
   },
   {
@@ -129,6 +134,7 @@ export const DEFAULT_TYPES = [
     requiresPatient: true,
     tracksPayment: true,
     supportsReminder: true,
+    tracksReport: false,
     defaultDurationMin: 30,
   },
   {
@@ -140,6 +146,7 @@ export const DEFAULT_TYPES = [
     requiresPatient: true,
     tracksPayment: true,
     supportsReminder: true,
+    tracksReport: false,
     defaultDurationMin: 50,
   },
   {
@@ -151,6 +158,7 @@ export const DEFAULT_TYPES = [
     requiresPatient: false,
     tracksPayment: false,
     supportsReminder: false,
+    tracksReport: false,
     defaultDurationMin: 225,
   },
 ] as const;

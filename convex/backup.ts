@@ -115,6 +115,7 @@ export async function buildSnapshot(
             supportsReminder: row.supportsReminder,
             defaultDurationMin: row.defaultDurationMin,
             defaultPrice: row.defaultPrice,
+            tracksReport: row.tracksReport,
             isSystemType: row.isSystemType,
           }),
         ),
@@ -143,6 +144,8 @@ export async function buildSnapshot(
             paymentMethod: row.paymentMethod,
             paymentNotes: row.paymentNotes,
             amount: row.amount,
+            reportDueAt: row.reportDueAt,
+            reportDoneAt: row.reportDoneAt,
             paidAt: row.paidAt,
             notes: row.notes,
             isPsychiatrist: row.isPsychiatrist,
@@ -286,6 +289,7 @@ export const restoreSnapshot = mutation({
         supportsReminder: row.supportsReminder,
         defaultDurationMin: row.defaultDurationMin,
         defaultPrice: row.defaultPrice,
+        tracksReport: row.tracksReport,
         isSystemType: row.isSystemType,
       });
       typeIds.set(row.id, newId);
@@ -325,6 +329,8 @@ export const restoreSnapshot = mutation({
         paymentMethod: row.paymentMethod,
         paymentNotes: row.paymentNotes,
         amount: row.amount,
+        reportDueAt: row.reportDueAt,
+        reportDoneAt: row.reportDoneAt,
         paidAt: row.paidAt,
         notes: row.notes,
         isPsychiatrist: row.isPsychiatrist,

@@ -140,6 +140,9 @@ export function AppointmentForm({
     paymentMethod: initial?.paymentMethod ?? "",
     paymentNotes: initial?.paymentNotes ?? "",
     amount: initial?.amount ? String(initial.amount) : "",
+    reportDueDate: initial?.reportDueAt
+      ? appointmentDateParts(initial.reportDueAt).date
+      : "",
     status: initial?.status ?? "confirmed",
     reminder: initial?.reminderEnabled ?? false,
     recurrenceCount: 1,
@@ -163,6 +166,7 @@ export function AppointmentForm({
     paymentMethod,
     paymentNotes,
     amount,
+    reportDueDate,
     status,
     reminder,
     recurrenceCount,
@@ -207,6 +211,7 @@ export function AppointmentForm({
   const notesControlId = useId();
   const paymentLabelId = useId();
   const paymentAmountControlId = useId();
+  const reportDueControlId = useId();
   const paymentMethodControlId = useId();
   const paymentNotesControlId = useId();
   const statusLabelId = useId();
@@ -218,6 +223,7 @@ export function AppointmentForm({
   const selectedType = types?.find((type) => type._id === effectiveTypeId);
   const requiresPatient = selectedType?.requiresPatient ?? true;
   const tracksPayment = selectedType?.tracksPayment ?? true;
+  const tracksReport = selectedType?.tracksReport ?? false;
   const supportsReminder = selectedType?.supportsReminder ?? true;
   const editing = Boolean(initial && !duplicating);
 
@@ -264,6 +270,7 @@ export function AppointmentForm({
     paymentMethod,
     paymentNotes,
     amount,
+    reportDueDate,
     status,
     reminder,
     recurrenceCount,
@@ -422,6 +429,10 @@ export function AppointmentForm({
           paymentMethod: tracksPayment ? paymentMethod : undefined,
           paymentNotes: tracksPayment ? paymentNotes : undefined,
           amount: tracksPayment ? Number(amount || 0) : 0,
+          reportDueAt:
+            tracksReport && reportDueDate
+              ? parseLocalDateTime(reportDueDate, "12:00")
+              : 0,
           status,
           reminderEnabled: submittedReminder,
           allowConflict,
@@ -438,6 +449,10 @@ export function AppointmentForm({
           paymentMethod: tracksPayment ? paymentMethod || undefined : undefined,
           paymentNotes: tracksPayment ? paymentNotes || undefined : undefined,
           amount: tracksPayment && amount ? Number(amount) : undefined,
+          reportDueAt:
+            tracksReport && reportDueDate
+              ? parseLocalDateTime(reportDueDate, "12:00")
+              : undefined,
           reminderEnabled: submittedReminder,
           recurrenceCount,
           allowConflict,
@@ -506,6 +521,7 @@ export function AppointmentForm({
               notes: notesControlId,
               paymentLabel: paymentLabelId,
               paymentAmount: paymentAmountControlId,
+              reportDue: reportDueControlId,
               paymentMethod: paymentMethodControlId,
               paymentNotes: paymentNotesControlId,
               statusLabel: statusLabelId,
@@ -517,6 +533,7 @@ export function AppointmentForm({
             showStatus: Boolean(initial),
             requiresPatient,
             tracksPayment,
+            tracksReport,
             supportsReminder,
           },
         }}
@@ -524,6 +541,7 @@ export function AppointmentForm({
         <AppointmentFields.Identity />
         <AppointmentFields.Schedule />
         <AppointmentFields.Payment />
+        <AppointmentFields.ReportDeadline />
         <AppointmentFields.StatusAndReminder />
       </AppointmentFields.Provider>
 
