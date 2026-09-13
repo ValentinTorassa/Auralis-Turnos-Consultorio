@@ -39,6 +39,22 @@ async function userDomainRows(ctx: Ctx, userId: Id<"users">) {
   return { appointmentTypes, patients, appointments, tasks, reminders, slots, settings };
 }
 
+/**
+ * Devuelve el turno referenciado sólo si sigue existiendo y comparte paciente
+ * con el aviso, que es exactamente lo que exige `validateSnapshotReferences`.
+ */
+export function consistentAppointmentRef(
+  appointments: { _id: Id<"appointments">; patientId?: Id<"patients"> }[],
+  reminder: { appointmentId?: Id<"appointments">; patientId?: Id<"patients"> },
+): Id<"appointments"> | undefined {
+  if (!reminder.appointmentId) return undefined;
+  const appointment = appointments.find((a) => a._id === reminder.appointmentId);
+  if (!appointment) return undefined;
+  return appointment.patientId === reminder.patientId
+    ? reminder.appointmentId
+    : undefined;
+}
+
 function domainCounts(rows: Awaited<ReturnType<typeof userDomainRows>>) {
   const total =
     rows.appointmentTypes.length + rows.patients.length + rows.appointments.length +
@@ -169,7 +185,12 @@ export async function buildSnapshot(
           withoutUndefined({
             id: row._id,
             patientRef: row.patientId,
-            appointmentRef: row.appointmentId,
+            // Un aviso ya cerrado conserva el turno al que apuntaba aunque a
+            // ese turno después le hayan cambiado el paciente. El vínculo
+            // queda inconsistente y el parser estricto rechaza el snapshot
+            // entero. Como en un aviso cerrado la referencia no aporta nada,
+            // se omite en vez de perder toda la copia.
+            appointmentRef: consistentAppointmentRef(rows.appointments, row),
             message: row.message,
             dueAt: row.dueAt,
             active: row.active,

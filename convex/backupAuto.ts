@@ -87,7 +87,12 @@ export const runAll = internalAction({
       {},
     );
 
-    const totals = { users: 0, failed: 0, removed: 0 };
+    const totals = {
+      users: 0,
+      failed: 0,
+      removed: 0,
+      errors: [] as string[],
+    };
     for (const userId of userIds) {
       try {
         const now = Date.now();
@@ -113,9 +118,14 @@ export const runAll = internalAction({
         });
         totals.users++;
         totals.removed += result.removed;
-      } catch {
-        // Un usuario con datos inconsistentes no debe frenar al resto.
+      } catch (error) {
+        // Un usuario con datos inconsistentes no debe frenar al resto, pero el
+        // motivo tiene que quedar visible: una copia que falla en silencio es
+        // peor que no tenerla, porque nadie se entera hasta que la necesita.
         totals.failed++;
+        const reason = error instanceof Error ? error.message : String(error);
+        totals.errors.push(`${userId}: ${reason}`.slice(0, 300));
+        console.error(`[backupAuto] falló la copia de ${userId}: ${reason}`);
       }
     }
     return totals;
