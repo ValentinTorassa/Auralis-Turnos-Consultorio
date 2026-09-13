@@ -30,6 +30,7 @@ type FieldIds = {
   overnight: string;
   notes: string;
   paymentLabel: string;
+  paymentAmount: string;
   paymentMethod: string;
   paymentNotes: string;
   statusLabel: string;
@@ -283,7 +284,7 @@ function Schedule() {
 
 function Payment() {
   const {
-    state: { paymentStatus, paymentMethod, paymentNotes },
+    state: { paymentStatus, amount, paymentMethod, paymentNotes },
     actions: { update },
     meta: { ids, tracksPayment },
   } = useAppointmentFields();
@@ -311,6 +312,19 @@ function Payment() {
         />
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+          <Label htmlFor={ids.paymentAmount}>Importe</Label>
+          <Input
+            id={ids.paymentAmount}
+            value={amount}
+            onChange={(event) =>
+              update({ amount: event.target.value.replace(/[^\d]/g, "") })
+            }
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="$"
+          />
+        </div>
         <div>
           <Label htmlFor={ids.paymentMethod}>Forma de pago</Label>
           <Input

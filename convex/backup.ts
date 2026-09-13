@@ -107,6 +107,7 @@ export const exportSnapshot = query({
             tracksPayment: row.tracksPayment,
             supportsReminder: row.supportsReminder,
             defaultDurationMin: row.defaultDurationMin,
+            defaultPrice: row.defaultPrice,
             isSystemType: row.isSystemType,
           }),
         ),
@@ -134,6 +135,7 @@ export const exportSnapshot = query({
             paymentStatus: row.paymentStatus,
             paymentMethod: row.paymentMethod,
             paymentNotes: row.paymentNotes,
+            amount: row.amount,
             paidAt: row.paidAt,
             notes: row.notes,
             isPsychiatrist: row.isPsychiatrist,
@@ -268,6 +270,7 @@ export const restoreSnapshot = mutation({
         tracksPayment: row.tracksPayment,
         supportsReminder: row.supportsReminder,
         defaultDurationMin: row.defaultDurationMin,
+        defaultPrice: row.defaultPrice,
         isSystemType: row.isSystemType,
       });
       typeIds.set(row.id, newId);
@@ -306,6 +309,7 @@ export const restoreSnapshot = mutation({
         paymentStatus: row.paymentStatus,
         paymentMethod: row.paymentMethod,
         paymentNotes: row.paymentNotes,
+        amount: row.amount,
         paidAt: row.paidAt,
         notes: row.notes,
         isPsychiatrist: row.isPsychiatrist,

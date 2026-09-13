@@ -30,6 +30,18 @@ const MAX_APPOINTMENT_MS = 24 * 60 * 60 * 1000;
 const MIN_DATE_MS = Date.UTC(2000, 0, 1);
 const MAX_DATE_MS = Date.UTC(2101, 0, 1);
 
+const MAX_AMOUNT = 100_000_000;
+
+/** Importe en pesos enteros. Vacío o 0 se guarda como "sin cargar". */
+export function normalizeAmount(value: number | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  if (!Number.isFinite(value) || value < 0 || value > MAX_AMOUNT) {
+    throw new Error("Importe inválido");
+  }
+  const rounded = Math.round(value);
+  return rounded === 0 ? undefined : rounded;
+}
+
 export function validateAppointmentInterval(startTime: number, endTime: number) {
   if (
     !Number.isSafeInteger(startTime) ||
@@ -334,6 +346,7 @@ export const create = mutation({
     paymentStatus: v.optional(paymentV),
     paymentMethod: v.optional(v.string()),
     paymentNotes: v.optional(v.string()),
+    amount: v.optional(v.number()),
     reminderEnabled: v.optional(v.boolean()),
     recurrenceCount: recurrenceV,
     allowConflict: v.optional(v.boolean()),
@@ -387,6 +400,9 @@ export const create = mutation({
         paymentNotes: rules.tracksPayment
           ? optionalText(args.paymentNotes, 500)
           : undefined,
+        amount: rules.tracksPayment
+          ? (normalizeAmount(args.amount) ?? normalizeAmount(type.defaultPrice))
+          : undefined,
         paidAt: paymentStatus === "paid" ? now : undefined,
         notes: optionalText(args.notes, 4000),
         isPsychiatrist: type.isPsychiatrist,
@@ -438,6 +454,7 @@ export const update = mutation({
     paymentStatus: v.optional(paymentV),
     paymentMethod: v.optional(v.string()),
     paymentNotes: v.optional(v.string()),
+    amount: v.optional(v.number()),
     notes: v.optional(v.string()),
     reminderEnabled: v.optional(v.boolean()),
     allowConflict: v.optional(v.boolean()),
@@ -474,6 +491,7 @@ export const update = mutation({
       patch.paymentMethod = optionalText(args.paymentMethod, 200);
     if (args.paymentNotes !== undefined)
       patch.paymentNotes = optionalText(args.paymentNotes, 500);
+    if (args.amount !== undefined) patch.amount = normalizeAmount(args.amount);
     if (args.notes !== undefined) patch.notes = optionalText(args.notes, 4000);
     if (args.reminderEnabled !== undefined)
       patch.reminderEnabled = args.reminderEnabled;
@@ -498,6 +516,7 @@ export const update = mutation({
       patch.paymentStatus = "na";
       patch.paymentMethod = undefined;
       patch.paymentNotes = undefined;
+      patch.amount = undefined;
     }
     const status = args.status ?? row.status;
     const changesSchedule =

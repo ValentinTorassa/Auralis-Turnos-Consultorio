@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Settings2,
   UsersRound,
+  Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LogoMark } from "./Icons";
@@ -16,6 +17,7 @@ const links = [
   { href: "/", label: "Hoy", icon: LayoutDashboard },
   { href: "/agenda", label: "Agenda", icon: CalendarRange },
   { href: "/pacientes", label: "Pacientes", icon: UsersRound },
+  { href: "/caja", label: "Caja", icon: Wallet },
   { href: "/psiquiatra", label: "Psiquiatra", icon: Brain },
   { href: "/configuracion", label: "Ajustes", icon: Settings2 },
 ];

@@ -25,6 +25,7 @@ type TypeDraft = {
   tracksPayment: boolean;
   supportsReminder: boolean;
   defaultDurationMin: number;
+  defaultPrice: number;
   error: string;
 };
 
@@ -39,6 +40,7 @@ function draftFromType(type: Doc<"appointmentTypes">): TypeDraft {
     tracksPayment: type.tracksPayment ?? true,
     supportsReminder: type.supportsReminder ?? true,
     defaultDurationMin: type.defaultDurationMin ?? 50,
+    defaultPrice: type.defaultPrice ?? 0,
     error: "",
   };
 }
@@ -101,6 +103,7 @@ function TypeCapabilities({
 
 function TypeRow({ type }: { type: Doc<"appointmentTypes"> }) {
   const durationId = useId();
+  const priceId = useId();
   const { mutateAsync: updateType } = useMutation({
     mutationFn: useConvexMutation(api.types.update),
   });
@@ -119,6 +122,7 @@ function TypeRow({ type }: { type: Doc<"appointmentTypes"> }) {
     tracksPayment,
     supportsReminder,
     defaultDurationMin,
+    defaultPrice,
     error,
   } = draft;
 
@@ -134,6 +138,7 @@ function TypeRow({ type }: { type: Doc<"appointmentTypes"> }) {
         tracksPayment,
         supportsReminder,
         defaultDurationMin,
+        defaultPrice,
       });
       updateDraft({ editing: false });
     } catch (caught) {
@@ -201,6 +206,22 @@ function TypeRow({ type }: { type: Doc<"appointmentTypes"> }) {
                 }
               />
             </div>
+            <div className="flex-1">
+              <Label htmlFor={priceId} className="text-xs">
+                Precio sugerido ($)
+              </Label>
+              <Input
+                id={priceId}
+                type="number"
+                min={0}
+                step={1000}
+                className="h-9"
+                value={defaultPrice}
+                onChange={(event) =>
+                  updateDraft({ defaultPrice: Number(event.target.value) })
+                }
+              />
+            </div>
             <Button
               type="button"
               onClick={() => void handleSave()}
@@ -237,6 +258,7 @@ function TypeRow({ type }: { type: Doc<"appointmentTypes"> }) {
           <span className="hidden text-[11px] text-stone-400 sm:inline">
             {type.requiresPatient === false ? "Sin paciente" : "Paciente"} ·{" "}
             {type.defaultDurationMin ?? 50} min
+            {type.defaultPrice ? ` · $${type.defaultPrice.toLocaleString("es-AR")}` : ""}
           </span>
           <Button
             type="button"
@@ -276,6 +298,7 @@ const initialNewTypeDraft: NewTypeDraft = {
   tracksPayment: true,
   supportsReminder: true,
   defaultDurationMin: 50,
+  defaultPrice: 0,
   error: "",
 };
 
@@ -295,6 +318,7 @@ export function AppointmentTypesCard() {
     tracksPayment,
     supportsReminder,
     defaultDurationMin,
+    defaultPrice,
     error,
   } = draft;
 
@@ -311,6 +335,7 @@ export function AppointmentTypesCard() {
         tracksPayment,
         supportsReminder,
         defaultDurationMin,
+        defaultPrice,
       });
       updateDraft({ ...initialNewTypeDraft });
     } catch (caught) {
@@ -356,6 +381,18 @@ export function AppointmentTypesCard() {
             value={defaultDurationMin}
             onChange={(event) =>
               updateDraft({ defaultDurationMin: Number(event.target.value) })
+            }
+          />
+          <Input
+            type="number"
+            min={0}
+            step={1000}
+            aria-label="Precio sugerido en pesos"
+            placeholder="Precio $"
+            className="sm:w-32"
+            value={defaultPrice || ""}
+            onChange={(event) =>
+              updateDraft({ defaultPrice: Number(event.target.value) })
             }
           />
         </div>

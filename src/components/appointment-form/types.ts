@@ -11,6 +11,7 @@ export type AppointmentRecord = {
   paymentStatus: "paid" | "unpaid" | "owes" | "na";
   paymentMethod?: string;
   paymentNotes?: string;
+  amount?: number;
   status: "confirmed" | "cancelled" | "no_show" | "completed";
   reminderEnabled: boolean;
 };
@@ -27,6 +28,8 @@ export type AppointmentState = {
   paymentStatus: AppointmentRecord["paymentStatus"];
   paymentMethod: string;
   paymentNotes: string;
+  /** Texto del input; se convierte a número recién al guardar. */
+  amount: string;
   status: AppointmentRecord["status"];
   reminder: boolean;
   recurrenceCount: 1 | 4 | 8 | 12;

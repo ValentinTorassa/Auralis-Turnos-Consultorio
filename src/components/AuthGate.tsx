@@ -31,12 +31,12 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const [stuck, setStuck] = useState(false);
 
   useEffect(() => {
-    if (!isLoading) {
-      setStuck(false);
-      return;
-    }
+    if (!isLoading) return;
     const timer = setTimeout(() => setStuck(true), STUCK_MS);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      setStuck(false);
+    };
   }, [isLoading]);
 
   useEffect(() => {

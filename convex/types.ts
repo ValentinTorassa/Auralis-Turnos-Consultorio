@@ -2,6 +2,18 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireUserId } from "./lib";
 
+const MAX_PRICE = 100_000_000;
+
+/** Precio sugerido en pesos enteros; 0 o vacío significa "sin precio". */
+function normalizePrice(value: number | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  if (!Number.isFinite(value) || value < 0 || value > MAX_PRICE) {
+    throw new Error("Precio inválido");
+  }
+  const rounded = Math.round(value);
+  return rounded === 0 ? undefined : rounded;
+}
+
 export const list = query({
   args: {},
   handler: async (ctx) => {
@@ -24,6 +36,7 @@ export const create = mutation({
     tracksPayment: v.optional(v.boolean()),
     supportsReminder: v.optional(v.boolean()),
     defaultDurationMin: v.optional(v.number()),
+    defaultPrice: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx);
@@ -46,6 +59,7 @@ export const create = mutation({
       tracksPayment: args.tracksPayment ?? true,
       supportsReminder: args.supportsReminder ?? true,
       defaultDurationMin: args.defaultDurationMin ?? 50,
+      defaultPrice: normalizePrice(args.defaultPrice),
       isSystemType: false,
     });
   },
@@ -61,6 +75,7 @@ export const update = mutation({
     tracksPayment: v.optional(v.boolean()),
     supportsReminder: v.optional(v.boolean()),
     defaultDurationMin: v.optional(v.number()),
+    defaultPrice: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx);
@@ -74,6 +89,7 @@ export const update = mutation({
       tracksPayment?: boolean;
       supportsReminder?: boolean;
       defaultDurationMin?: number;
+      defaultPrice?: number;
     } = {};
     if (args.name !== undefined) {
       const name = args.name.trim();
@@ -93,6 +109,8 @@ export const update = mutation({
         throw new Error("La duración debe ser de al menos 5 minutos");
       patch.defaultDurationMin = args.defaultDurationMin;
     }
+    if (args.defaultPrice !== undefined)
+      patch.defaultPrice = normalizePrice(args.defaultPrice);
     await ctx.db.patch(args.id, patch);
   },
 });

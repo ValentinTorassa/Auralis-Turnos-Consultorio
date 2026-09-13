@@ -22,6 +22,7 @@ export type BackupAppointmentType = {
   tracksPayment?: boolean;
   supportsReminder?: boolean;
   defaultDurationMin?: number;
+  defaultPrice?: number;
   isSystemType?: boolean;
 };
 
@@ -47,6 +48,7 @@ export type BackupAppointment = {
   paymentStatus: PaymentStatus;
   paymentMethod?: string;
   paymentNotes?: string;
+  amount?: number;
   paidAt?: number;
   notes?: string;
   isPsychiatrist: boolean;
@@ -259,7 +261,7 @@ function validateAppointmentType(value: unknown, index: number) {
     [
       "id", "name", "color", "isPsychiatrist", "sortOrder", "code",
       "requiresPatient", "tracksPayment", "supportsReminder",
-      "defaultDurationMin", "isSystemType",
+      "defaultDurationMin", "defaultPrice", "isSystemType",
     ],
     ["id", "name", "color", "isPsychiatrist", "sortOrder"],
     label,
@@ -274,6 +276,7 @@ function validateAppointmentType(value: unknown, index: number) {
   optionalBoolean(row, "tracksPayment", label);
   optionalBoolean(row, "supportsReminder", label);
   optionalInteger(row, "defaultDurationMin", label, 5, 1_440);
+  optionalInteger(row, "defaultPrice", label, 1, 100_000_000);
   optionalBoolean(row, "isSystemType", label);
 }
 
@@ -311,7 +314,7 @@ function validateAppointment(value: unknown, index: number) {
     row,
     [
       "id", "patientRef", "typeRef", "title", "startTime", "endTime",
-      "status", "paymentStatus", "paymentMethod", "paymentNotes", "paidAt",
+      "status", "paymentStatus", "paymentMethod", "paymentNotes", "amount", "paidAt",
       "notes", "isPsychiatrist", "reminderEnabled", "seriesRef",
       "occurrenceIndex", "deletedAt", "createdAt", "updatedAt",
     ],
@@ -335,6 +338,7 @@ function validateAppointment(value: unknown, index: number) {
   oneOf(row.paymentStatus, ["paid", "unpaid", "owes", "na"], `${label}.paymentStatus`);
   optionalString(row, "paymentMethod", label, 200, { min: 1 });
   optionalString(row, "paymentNotes", label, 500, { min: 1 });
+  optionalInteger(row, "amount", label, 1, 100_000_000);
   optionalDate(row, "paidAt", label);
   optionalString(row, "notes", label, 4_000, { min: 1 });
   boolean(row.isPsychiatrist, `${label}.isPsychiatrist`);

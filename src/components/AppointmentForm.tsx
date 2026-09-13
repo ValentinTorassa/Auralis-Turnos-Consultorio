@@ -139,6 +139,7 @@ export function AppointmentForm({
     paymentStatus: initial?.paymentStatus ?? "unpaid",
     paymentMethod: initial?.paymentMethod ?? "",
     paymentNotes: initial?.paymentNotes ?? "",
+    amount: initial?.amount ? String(initial.amount) : "",
     status: initial?.status ?? "confirmed",
     reminder: initial?.reminderEnabled ?? false,
     recurrenceCount: 1,
@@ -161,6 +162,7 @@ export function AppointmentForm({
     paymentStatus,
     paymentMethod,
     paymentNotes,
+    amount,
     status,
     reminder,
     recurrenceCount,
@@ -175,6 +177,7 @@ export function AppointmentForm({
   const setStartTime = (startTime: string) => updateState({ startTime });
   const setEndTime = (endTime: string) => updateState({ endTime });
   const setEndsNextDay = (endsNextDay: boolean) => updateState({ endsNextDay });
+  const setAmount = (amount: string) => updateState({ amount });
   const setPaymentStatus = (
     paymentStatus: AppointmentRecord["paymentStatus"],
   ) =>
@@ -203,6 +206,7 @@ export function AppointmentForm({
   const overnightControlId = useId();
   const notesControlId = useId();
   const paymentLabelId = useId();
+  const paymentAmountControlId = useId();
   const paymentMethodControlId = useId();
   const paymentNotesControlId = useId();
   const statusLabelId = useId();
@@ -259,6 +263,7 @@ export function AppointmentForm({
     paymentStatus,
     paymentMethod,
     paymentNotes,
+    amount,
     status,
     reminder,
     recurrenceCount,
@@ -348,7 +353,12 @@ export function AppointmentForm({
     const nextEnd = timeToMinutes(startTime) + duration;
     setEndTime(minutesToTime(nextEnd));
     setEndsNextDay(nextEnd >= 1440);
-    if (nextType.tracksPayment === false) setPaymentStatus("na");
+    if (nextType.tracksPayment === false) {
+      setPaymentStatus("na");
+      setAmount("");
+    } else if (!amount && nextType.defaultPrice) {
+      setAmount(String(nextType.defaultPrice));
+    }
     if (nextType.supportsReminder === false) setReminder(false);
   }
 
@@ -411,6 +421,7 @@ export function AppointmentForm({
           paymentStatus: submittedPaymentStatus,
           paymentMethod: tracksPayment ? paymentMethod : undefined,
           paymentNotes: tracksPayment ? paymentNotes : undefined,
+          amount: tracksPayment ? Number(amount || 0) : 0,
           status,
           reminderEnabled: submittedReminder,
           allowConflict,
@@ -426,6 +437,7 @@ export function AppointmentForm({
           paymentStatus: submittedPaymentStatus,
           paymentMethod: tracksPayment ? paymentMethod || undefined : undefined,
           paymentNotes: tracksPayment ? paymentNotes || undefined : undefined,
+          amount: tracksPayment && amount ? Number(amount) : undefined,
           reminderEnabled: submittedReminder,
           recurrenceCount,
           allowConflict,
@@ -493,6 +505,7 @@ export function AppointmentForm({
               overnight: overnightControlId,
               notes: notesControlId,
               paymentLabel: paymentLabelId,
+              paymentAmount: paymentAmountControlId,
               paymentMethod: paymentMethodControlId,
               paymentNotes: paymentNotesControlId,
               statusLabel: statusLabelId,

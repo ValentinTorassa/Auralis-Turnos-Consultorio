@@ -16,6 +16,8 @@ export default defineSchema({
     tracksPayment: v.optional(v.boolean()),
     supportsReminder: v.optional(v.boolean()),
     defaultDurationMin: v.optional(v.number()),
+    /** Precio sugerido en pesos enteros; precarga el importe del turno. */
+    defaultPrice: v.optional(v.number()),
     isSystemType: v.optional(v.boolean()),
   }).index("by_user", ["userId"]),
 
@@ -54,6 +56,8 @@ export default defineSchema({
     ),
     paymentMethod: v.optional(v.string()),
     paymentNotes: v.optional(v.string()),
+    /** Importe del turno en pesos enteros. Sin esto los totales no cierran. */
+    amount: v.optional(v.number()),
     paidAt: v.optional(v.number()),
     notes: v.optional(v.string()),
     isPsychiatrist: v.boolean(),
